@@ -1,0 +1,7 @@
+zhipu:
+    api_key: "78123395928d601ead56434965606c63.hMz9tJzv4VtUDCyx"
+    model: "glm-4"
+
+llama2:
+    model_path: "./weight/Llama-2-7b-chat-hf"
+    api_url: "http://localhost:8000/generate"

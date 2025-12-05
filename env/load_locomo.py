@@ -22,6 +22,13 @@ class QA:
     category: Optional[int] = None
     adversarial_answer: Optional[str] = None
 
+    # category 字段的不同类别代表不同类型的问题：
+    # 1: 单跳推理（Single-hop Reasoning） - 问题的答案可以直接从单一对话回合中提取。
+    # 2: 多跳推理（Multi-hop Reasoning） - 问题的答案需要跨多个对话回合或会话推理。
+    # 3: 时间推理（Temporal Reasoning） - 问题涉及时间的推理，需要根据时间顺序推理事件。
+    # 4: 事件推理（Event Reasoning） - 问题需要根据对话中的事件进行推理。
+    # 5: 对抗性问题（Adversarial Reasoning） - 问题设计得具有挑战性，用于测试模型的鲁棒性和推理能力。
+
     @property
     def final_answer(self) -> Optional[str]:
         """Get the appropriate answer based on category."""
@@ -258,7 +265,7 @@ def get_dataset_statistics(samples: List[LoCoMoSample]) -> Dict:
 
 if __name__ == "__main__":
     # Example usage
-    dataset_path = Path(__file__).parent / "data" / "locomo10.json"
+    dataset_path = Path(__file__).parent.parent / "dataset" / "locomo10.json"
     try:
         print(f"Loading dataset from: {dataset_path}")
         samples = load_locomo_dataset(dataset_path)
