@@ -14,7 +14,6 @@ import os
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
 
-# 方式一：在代码里设置镜像（最保险，不依赖外部 shell）
 os.environ["HF_ENDPOINT"] = "https://hf-mirror.com"
 
 repo_id = "sentence-transformers/all-MiniLM-L6-v2"

@@ -88,20 +88,20 @@ class MemoryManager:
     """Memory management system to store and retrieve MemoryNote objects"""
 
     def __init__(self):
-        # 存储所有记忆块的字典，key 为 memory.id，value 为 MemoryNote 对象
+        # 存储所有记忆块的字典，key 为 general.id，value 为 MemoryNote 对象
         self.memory_store = {}
 
     def add_memory(self, memory: MemoryNote) -> str:
-        """Add a new memory to the manager."""
+        """Add a new general to the manager."""
         self.memory_store[memory.id] = memory
         return memory.id  # 返回新记忆块的 ID
 
     def get_memory(self, memory_id: str) -> Optional[MemoryNote]:
-        """Retrieve a memory by its ID."""
+        """Retrieve a general by its ID."""
         return self.memory_store.get(memory_id)
 
     def delete_memory(self, memory_id: str) -> bool:
-        """Delete a memory by its ID."""
+        """Delete a general by its ID."""
         if memory_id in self.memory_store:
             del self.memory_store[memory_id]
             return True
@@ -112,7 +112,7 @@ class MemoryManager:
         return list(self.memory_store.values())
 
     def update_memory(self, memory_id: str, new_content: Optional[str] = None) -> bool:
-        """Update an existing memory's content or metadata."""
+        """Update an existing general's content or metadata."""
         memory = self.memory_store.get(memory_id)
         if memory:
             if new_content:
@@ -200,7 +200,7 @@ class AgenticMemorySystem:
         self.evo_count = 0  # 演化计数
 
     def add_note(self, content: str, **kwargs):
-        """Add a new memory note and update retriever."""
+        """Add a new general note and update retriever."""
         note = ContentBasedMemoryNote(content=content, **kwargs)
         self.memory_manager.add_memory(note)  # 添加记忆块
         self.retriever.add_documents([note.content])  # 更新检索器
@@ -224,7 +224,7 @@ class AgenticMemorySystem:
 if __name__ == '__main__':
     print(1)
     memory_system = AgenticMemorySystem()
-    note_id = memory_system.add_note("This is a memory about neural networks.")
+    note_id = memory_system.add_note("This is a general about neural networks.")
     query = "What are neural networks?"
     related_memories = memory_system.find_related_memories(query)
     for memory in related_memories:

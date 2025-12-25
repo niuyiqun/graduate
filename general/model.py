@@ -178,48 +178,62 @@ class ZhipuChat(BaseModel):
 
     def chat(self, messages: List[Dict[str, Any]]) -> Dict[str, str]:
         """
-                与 ZhipuAI 模型交互
-                :param messages: 模型的输入
-                :return: 模型的生成回复
+        与 ZhipuAI 模型交互 (增强版：正则提取，专治各种格式不服)
         """
         if self.client is None:
             raise RuntimeError("ZhipuAI client is not loaded.")
 
         try:
-            # 直接传入 messages 给 ZhipuAI 接口
-            # print('-----------messages-----------')
-            # # print(messages)
-            # print(json.dumps(messages, indent=4, ensure_ascii=False))
-            # print('-----------messages-----------')
+            # 1. 调用 API
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages
             )
 
-            """
-            response.choices[0].message Example:
-            CompletionMessage(content='```json\n{\n    "step_by_step_thinking": "I need to find a bell pepper.",\n    "action": "examine chest drawer"\n}\n```', role='assistant', tool_calls=None)
-            """
+            # 获取原始文本
+            content = response.choices[0].message.content
 
-            # 去掉 ```json 包裹
-            cleaned_answer = response.choices[0].message.content.strip("```json").strip("```")
+            # 2. 【核心修复】使用正则表达式提取 JSON
+            import re
 
-            # 将清理后的字符串解析为 JSON 对象
-            parsed_answer = json.loads(cleaned_answer)
+            # 解释：
+            # ```(?:json)?  -> 匹配 ``` 开头，json 可有可无
+            # \s* -> 忽略中间的换行符或空格
+            # (\{.*?\})     -> 【核心捕获】抓取 { ... } 中间的所有内容
+            # \s* -> 忽略后面的空白
+            # ```           -> 匹配结尾的 ```
+            # re.DOTALL     -> 让 . 也能匹配换行符，关键！
+            json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
 
+            if json_match:
+                # 方案 A：如果找到了 Markdown 框，直接取框里的
+                json_str = json_match.group(1)
+            else:
+                # 方案 B：如果没框，尝试暴力寻找最外层的 {}
+                # 这能处理开头有一堆废话的情况，比如 "好的，这是您的JSON：\n{...}"
+                start_idx = content.find("{")
+                end_idx = content.rfind("}")
+                if start_idx != -1 and end_idx != -1:
+                    json_str = content[start_idx: end_idx + 1]
+                else:
+                    # 方案 C：实在没招了，硬解析原始文本
+                    json_str = content
+
+            # 3. 解析 JSON
+            parsed_answer = json.loads(json_str)
             return parsed_answer
+
         except json.JSONDecodeError as json_error:
-            # 捕获 JSON 解析错误
             print(f"JSON parsing error: {json_error}")
+            print(f"Failed JSON content: {content}")  # 打印错误现场
             return {"error": "JSON parsing error", "details": str(json_error)}
 
         except Exception as e:
-            # 捕获其他错误
             print(f"Error during chat: {e}")
             return {"error": "Other error", "details": str(e)}
 
 
 if __name__ == '__main__':
-    config_path = "./config/llm_config.yaml"
-    agent = LlamaChat(config_path)
+    config_path = "../config/llm_config.yaml"
+    agent = ZhipuChat(config_path)
     print('generated content:', agent.chat('messages'))
