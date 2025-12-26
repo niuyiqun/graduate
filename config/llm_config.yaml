@@ -6,3 +6,6 @@ llama2:
     model_path: "./weight/Llama-2-7b-chat-hf"
     api_url: "http://localhost:8000/generate"
 
+qwen:
+    api_key: "f303c71fb1004831ba1ae8ead8e69f31.rh2ZqKOeZFA2yuTE"
+    model: "qwen"

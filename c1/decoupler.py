@@ -9,19 +9,22 @@
 
 # c1/decoupler.py
 import time
+import json
 from typing import List, Dict, Any
 from dataclasses import dataclass
 
-# 导入你定义好的数据结构
+# 导入通用结构
 from general.decoupled_memory import DecoupledMemoryAtom
-
-# 导入你的模型基类用于类型提示
+# 导入模型基类
 from general.model import BaseModel
 
 
 @dataclass
 class RawInputObj:
-    """简单的原始输入封装"""
+    """
+    [Data Object] 原始输入封装
+    用于标准化进入 Pipeline 的非结构化文本流，保留时序信息以支持时序推理。
+    """
     text: str
     timestamp: float = None
     source: str = "user"
@@ -33,25 +36,45 @@ class RawInputObj:
 
 class SemanticDecoupler:
     """
-    【研究内容一核心算法】多粒度语义正交分解器
-    接入 ZhipuChat 或 LlamaChat 进行真实推理
+    【研究内容一(1)：多粒度语义正交分解器 (Multi-Granularity Orthogonal Decoupler)】
+
+    核心科研逻辑：
+    该模块是整个记忆系统的“入水口”，负责解决非结构化对话流中“信息纠缠”与“信噪比低”的问题。
+
+    架构设计 (Architecture Design):
+    -------------------------------------------------------
+    1. 理论基础：双流认知架构 (Dual-Stream Cognitive Architecture)
+       - 模拟人脑将“情景记忆 (Episodic)”与“语义记忆 (Semantic)”分离的机制。
+       - 将混杂文本流拆解为独立的特征子空间，防止时序信息与逻辑规则混淆。
+
+    2. 核心机制：基于 Schema 的正交投影 (Schema-Based Orthogonal Projection)
+       - 利用 LLM 的 In-Context Learning 能力，强约束模型将输入映射到四个预定义的正交槽位：
+         [Event] / [Entity] / [Knowledge] / [Rule]。
+       - 这种解耦是后续“高密度压缩”和“精确推理”的前提。
+    -------------------------------------------------------
     """
 
     def __init__(self, llm_model: BaseModel):
         """
-        :param llm_model: 传入初始化好的 ZhipuChat 或 LlamaChat 实例
+        初始化分解器
+        :param llm_model: 传入初始化好的 Teacher Model (如 GLM-4/Llama-3)
         """
         self.llm = llm_model
 
-        # System Prompt: 对应 PPT 中的“构建高维语义投影空间”
-        # 注意：这里明确要求使用 ```json 包裹，适配 ZhipuChat 的解析逻辑
+        # --- Schema Definition (核心定义的语义投影空间) ---
+        # 对应 PPT 中的“多视图正交槽位定义”
+        # 这里的 Prompt 设计体现了“模式遵循 (Schema Following)”的技术路线
         self.system_prompt = """
         你是一个认知记忆系统的预处理模块。请将用户的输入文本进行“多粒度正交分解”，拆解为以下四类记忆原子：
 
         1. [Event] 情景/事件：包含时间、动作的动态过程（如"用户去了..."）。
+           -> 对应 Episodic Stream (时序流)
         2. [Entity] 实体：关键名词、人名、地名或物体（仅提取核心实体）。
+           -> 对应 Concept Graph Node (概念节点)
         3. [Knowledge] 知识：客观事实、定义或常识（如"地球是圆的"）。
+           -> 对应 Semantic Stream (语义流-客观)
         4. [Rule] 规则：用户的显式指令、偏好或约束条件（如"用户喜欢..."）。
+           -> 对应 Semantic Stream (语义流-主观)
 
         约束：
         - 去除口语冗余（如“那个”、“嗯”）。
@@ -68,10 +91,20 @@ class SemanticDecoupler:
         """
 
     def decouple(self, raw_input: RawInputObj) -> List[DecoupledMemoryAtom]:
-        """执行分解流程"""
+        """
+        [主入口] 执行分解流水线 (Execution Pipeline)。
 
-        # 1. 构造 Messages (适配 ZhipuChat/LlamaChat 的输入格式)
+        流程：
+        1. Context Injection: 注入时间戳上下文。
+        2. Inference: 调用 LLM 进行正交投影。
+        3. Fallback: 异常熔断与降级处理。
+        4. Atomization: 归一化封装为记忆原子。
+        """
+
+        # 1. 构造上下文 (Context Construction)
+        # 将时间维度显式注入，辅助模型判断 Event 的时序属性
         user_content = f"Time: {raw_input.timestamp}\nText: {raw_input.text}"
+
         messages = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": user_content}
@@ -79,23 +112,22 @@ class SemanticDecoupler:
 
         print(f"--- [Decoupler] 正在调用大模型分解: {raw_input.text[:20]}... ---")
 
-        # 2. LLM 推理
-        # 注意：你的 ZhipuChat.chat 返回的已经是解析好的 dict，或者包含 error 的 dict
+        # 2. LLM 推理 (Inference)
         response_data = self.llm.chat(messages)
 
-        # 3. 错误处理
+        # 3. 鲁棒性工程：错误处理与降级 (Robustness & Fallback)
+        # 如果模型输出格式崩坏或 API 报错，执行“降级策略”：
+        # 将整句话作为单一 Event 存储，保证系统可用性 (Availability) > 完美性 (Perfection)
         if "error" in response_data:
             print(f"[Error] 模型调用失败: {response_data.get('details')}")
-            # 降级策略：把整句话当做一个 Event 存下来
+            # Fallback: Treat the whole text as a single raw event
             return [DecoupledMemoryAtom(content=raw_input.text, atom_type="event", source_text=raw_input.text)]
 
-        # 4. 封装为记忆原子
+        # 4. 原子化与归一化 (Atomization & Normalization)
         atoms = []
+        parsed_data = response_data  # 假设 LLM 基类已处理 JSON 解析
 
-        # 你的 ZhipuChat 已经把 JSON 解析为字典了，直接用
-        parsed_data = response_data
-
-        # 定义类型映射，防止 key 大小写问题或复数问题
+        # 类型映射表：处理 LLM 可能输出的复数形式或大小写差异
         type_map = {
             'event': 'event', 'events': 'event',
             'entity': 'entity', 'entities': 'entity',
@@ -104,21 +136,24 @@ class SemanticDecoupler:
         }
 
         for key, content_list in parsed_data.items():
-            # 过滤掉非预定义的 key (比如 step_by_step_thinking)
+            # 过滤掉非 Schema 定义的幻觉 Key
             norm_type = type_map.get(key.lower())
             if not norm_type:
                 continue
 
             if isinstance(content_list, list):
                 for content in content_list:
+                    # 实例化原子对象
+                    # 这一步完成了从“非结构化文本”到“可计算对象”的质变
                     atom = DecoupledMemoryAtom(
                         content=content,
                         atom_type=norm_type,
-                        source_text=raw_input.text,
+                        source_text=raw_input.text,  # 保留溯源信息 (Provenance)
                         timestamp=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(raw_input.timestamp))
                     )
                     atoms.append(atom)
 
+        print(f"  -> 初步提取 {len(atoms)} 条原子")
         return atoms
 
 
