@@ -7,140 +7,167 @@
 @Desc    ：
 """
 
+# -*- coding: UTF-8 -*-
 # c1/pipeline.py
+
 import sys
 import os
 import time
+from datetime import datetime
 from typing import List
 
-# --- 路径适配 (确保能导入根目录模块) ---
+# --- 路径适配 ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
 sys.path.append(root_dir)
 
 # --- 模块导入 ---
 from general.model import ZhipuChat
-from general.decoupled_memory import DecoupledMemoryAtom
 from general.base_memory import AgenticMemorySystem
 
-# 导入第一章的三大核心组件
+# 导入第一章组件
 from c1.decoupler import SemanticDecoupler, RawInputObj
 from c1.verifier import ConsistencyVerifier
 from c1.deduplicator import SemanticRedundancyFilter
 
+# --- 导入您的数据加载器 ---
+from env.load_locomo import load_locomo_dataset, LoCoMoSample, Turn
+
 
 class MemoryPipeline:
-    """
-    【第一章总控流水线】
-    串联：正交分解 -> 反事实验证 -> 双层语义压缩 -> 存储
-    """
-
     def __init__(self, config_path: str):
-        print(">>> [Pipeline] 正在初始化各个组件...")
-
-        # 1. 基础组件
+        print(">>> [Pipeline] 初始化 LoCoMo 记忆处理流水线...")
         self.llm = ZhipuChat(config_path)
-        self.memory_sys = AgenticMemorySystem()  # 内存管理器 + 检索器
+        self.memory_sys = AgenticMemorySystem()
 
-        # 2. 研究内容一的核心模块
         self.decoupler = SemanticDecoupler(self.llm)
         self.verifier = ConsistencyVerifier(self.llm)
         self.deduplicator = SemanticRedundancyFilter(self.memory_sys, self.llm)
 
-        print(">>> [Pipeline] 初始化完成！\n")
-
-    def process_session_stream(self, session_text: str, session_time: str = None):
+    def process_locomo_sample(self, sample: LoCoMoSample):
         """
-        处理一段对话流 (Stream Processing)
+        处理单个 LoCoMo 样本（包含多个 Session）
         """
-        print("=" * 60)
-        print(f"【Input Stream】:\n{session_text.strip()[:100]}...")
-        print("=" * 60)
+        print(f"\n{'=' * 80}")
+        print(f"开始处理 Sample ID: {sample.sample_id}")
+        print(f"参与者: {sample.conversation.speaker_a} & {sample.conversation.speaker_b}")
+        print(f"{'=' * 80}")
 
-        # --- Step 1: 多粒度语义正交分解 (Decoupling) ---
-        print("\n=== Step 1: 正交分解 (Decoupler) ===")
-        raw_obj = RawInputObj(text=session_text, timestamp=time.time())
+        sorted_session_ids = sorted(sample.conversation.sessions.keys())
+
+        for s_id in sorted_session_ids:
+            session = sample.conversation.sessions[s_id]
+            date_str = session.date_time
+
+            # 【修改点】先解析时间为 float，再传入
+            timestamp_float = self._parse_locomo_time(date_str)
+
+            print(f"\n>>> 处理 Session {s_id} (Time: {date_str})")
+
+            dialogue_text = self._format_turns(session.turns)
+            print(f"--- 对话片段 ({len(session.turns)} turns) ---")
+            print(dialogue_text[:200] + "..." if len(dialogue_text) > 200 else dialogue_text)
+
+            # 【修改点】传入 float 类型的时间戳
+            self._run_pipeline_step(dialogue_text, timestamp=timestamp_float)
+
+        print(f"\n{'#' * 30} Sample {sample.sample_id} 处理完毕 {'#' * 30}")
+        self.print_final_memory_state()
+
+        # 注意：实际实验中，处理下一个 Sample 前应该清空记忆库
+        # self.memory_sys.clear() # 如果 BaseMemory 有这个方法的话
+
+        # ---【新增】辅助函数：解析 LoCoMo 时间格式 ---
+
+    def _parse_locomo_time(self, time_str: str) -> float:
+        """
+        将字符串 "1:14 pm on 25 May, 2023" 转换为 float timestamp
+        """
+        try:
+            # LoCoMo 时间格式匹配
+            dt = datetime.strptime(time_str, "%I:%M %p on %d %B, %Y")
+            return dt.timestamp()
+        except ValueError:
+            print(f"  [Warn] 时间格式解析失败: '{time_str}'，使用当前系统时间。")
+            return time.time()
+        except Exception as e:
+            print(f"  [Warn] 时间解析未知错误: {e}")
+            return time.time()
+
+    def _format_turns(self, turns: List[Turn]) -> str:
+        """将 Turn 对象列表转为 LLM 易读的字符串"""
+        lines = []
+        for turn in turns:
+            # 格式: [Caroline]: I want to help people...
+            lines.append(f"[{turn.speaker}]: {turn.text}")
+        return "\n".join(lines)
+
+    def _run_pipeline_step(self, text: str, timestamp: str):
+        """标准的三步处理流程"""
+        # Step 1: Decouple
+        raw_obj = RawInputObj(text=text, timestamp=timestamp)
         dirty_atoms = self.decoupler.decouple(raw_obj)
-
         if not dirty_atoms:
-            print("  [Warn] 未提取到任何有效信息。")
+            print("  [Warn] 无有效信息提取。")
             return
 
-        print(f"  -> 初步提取 {len(dirty_atoms)} 条原子:")
-        for a in dirty_atoms:
-            print(f"    - [{a.atom_type}] {a.content}")
-
-        # --- Step 2: 自监督反事实校验 (Verification) ---
-        print("\n=== Step 2: 反事实校验 (Verifier) ===")
-        # 这一步是为了去幻觉 (Hallucination Removal)
-        clean_atoms = self.verifier.verify_batch(dirty_atoms, session_text)
-
+        # Step 2: Verify (传入原始对话作为 Ground Truth)
+        clean_atoms = self.verifier.verify_batch(dirty_atoms, text)
         if not clean_atoms:
-            print("  [Info] 所有原子均未通过校验（被视为幻觉/噪声）。")
             return
 
-        print(f"  -> 校验通过 {len(clean_atoms)} 条有效原子。")
-
-        # --- Step 3: 双层语义压缩与存储 (Deduplication & Storage) ---
-        print("\n=== Step 3: 双层压缩与存储 (Filter & Store) ===")
-        # Layer 1 (Cross-View) + Layer 2 (Global Vector Gating)
+        # Step 3: Deduplicate & Store
         self.deduplicator.filter_and_add_batch(clean_atoms)
+        print(f"  [Success] 入库完成。")
 
     def print_final_memory_state(self):
-        """打印当前记忆库状态，验证压缩效果"""
-        print("\n" + "#" * 30 + " 最终记忆库状态 " + "#" * 30)
+        """打印记忆库快照"""
+        print("\n=== 最终记忆库状态 ===")
         all_mems = self.memory_sys.memory_manager.get_all_memories()
 
-        if not all_mems:
-            print("(记忆库为空)")
-            return
+        # 按 Attribute (Rule) 和 Event 分组打印，方便检查归因
+        mems_by_type = {}
+        for m in all_mems:
+            mems_by_type.setdefault(m.atom_type, []).append(m)
 
-        # 按类型分组打印
-        sorted_mems = sorted(all_mems, key=lambda x: x.atom_type)
-        current_type = ""
-        for mem in sorted_mems:
-            if mem.atom_type != current_type:
-                print(f"\n--- {mem.atom_type.upper()} ---")
-                current_type = mem.atom_type
-            print(f"ID[{mem.id}]: {mem.content}")
-        print("#" * 76 + "\n")
+        for m_type, mems in mems_by_type.items():
+            print(f"\n--- {m_type.upper()} ({len(mems)}) ---")
+            for m in mems:
+                print(f"  - {m.content}")
 
 
-# =============================================================================
-# 运行示例 (Main)
-# =============================================================================
 if __name__ == "__main__":
-    # 1. 配置文件路径
-    config_path = os.path.join(root_dir, "config", "llm_config.yaml")
+    # 1. 路径设置
+    config_file = os.path.join(root_dir, "config", "llm_config.yaml")
+    # 假设 locomo10.json 在项目根目录的 dataset 文件夹下
+    dataset_file = os.path.join(root_dir, "dataset", "locomo10.json")
 
-    # 2. 实例化流水线
-    pipeline = MemoryPipeline(config_path)
+    # 2. 初始化
+    pipeline = MemoryPipeline(config_file)
 
-    # 3. 构造模拟对话数据 (LoCoMo 风格，3-5 轮)
-    # 包含：Rule与Event冗余、自我修正、新知识
-    dialogue_turn_1 = """
-[User]: 我最近刚搬到杭州，准备开始新的生活。
-[Assistant]: 欢迎来到杭州！
-[User]: 谢谢。我有个习惯，每天早上必须喝一杯拿铁，不然没精神。
-[User]: 哦对了，昨天我去找房子，结果那个中介太坑了，带我看了好几个破房子。
-    """
+    # 3. 加载数据
+    try:
+        print(f"正在加载数据集: {dataset_file}")
+        samples = load_locomo_dataset(dataset_file)
 
-    dialogue_turn_2 = """
-[User]: 今天早上我又喝了一杯拿铁，感觉好多了。
-[User]: 不过我发现杭州的菜稍微有点甜，我其实不太能吃甜的，我喜欢吃辣。
-    """
+        if samples:
+            # 【修改点】指定一个安全的 Sample ID (conv-44: 聊狗和工作; conv-50: 聊车和旅游)
+            # 之前的 Caroline 是 conv-26，包含敏感词会导致报错
+            target_id = "conv-44"
 
-    # 4. 执行流程
+            # 精确查找该 ID 的样本
+            target_sample = next((s for s in samples if s.sample_id == target_id), None)
 
-    # --- 第 1 轮处理 ---
-    # 预期：提取"搬到杭州"(Event/Know), "每天喝拿铁"(Rule), 昨天看房(Event)
-    pipeline.process_session_stream(dialogue_turn_1)
+            if target_sample:
+                print(f"\n>>> 选中测试样本: {target_sample.sample_id}")
+                pipeline.process_locomo_sample(target_sample)
+            else:
+                print(f"[Error] 未找到 ID 为 {target_id} 的样本，请检查 ID 是否正确。")
+                # 打印所有可用 ID 供调试
+                all_ids = [s.sample_id for s in samples]
+                print(f"可用 ID 列表: {all_ids}")
 
-    # --- 第 2 轮处理 ---
-    # 预期：
-    # 1. "今天早上喝拿铁" -> 应该被 "每天喝拿铁"(Rule) 在跨视图层吃掉 (Layer 1)。
-    # 2. "不吃甜/喜欢辣" -> 新 Rule，存入。
-    pipeline.process_session_stream(dialogue_turn_2)
-
-    # 5. 打印最终结果，验收 "高密度表征"
-    pipeline.print_final_memory_state()
+    except FileNotFoundError:
+        print(f"错误：找不到数据集文件 {dataset_file}")
+    except Exception as e:
+        print(f"运行时错误: {e}")

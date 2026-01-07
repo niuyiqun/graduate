@@ -7,27 +7,46 @@
 @Desc    ：
 """
 
-# c1/decoupler.py
+# -*- coding: UTF-8 -*-
+"""
+@Project ：graduate 
+@File    ：decoupler.py
+@Desc    ：研究内容一(1)：双流语义正交分解器 (Dual-Stream Orthogonal Decoupler)
+          负责将非结构化对话流分解为 Profile, Knowledge, Activity, Thought 四个正交视图。
+"""
+
 import time
 import json
-from typing import List, Dict, Any
+import sys
+import os
+from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 
-# 导入通用结构
-from general.decoupled_memory import DecoupledMemoryAtom
-# 导入模型基类
-from general.model import BaseModel
+# --- 路径适配 (确保能导入根目录下的 general 模块) ---
+current_dir = os.path.dirname(os.path.abspath(__file__))
+root_dir = os.path.dirname(current_dir)
+if root_dir not in sys.path:
+    sys.path.append(root_dir)
+
+# --- 模块导入 ---
+try:
+    from general.decoupled_memory import DecoupledMemoryAtom
+    from general.model import BaseModel
+    # 导入 Prompt 定义，确保逻辑源头统一
+    from c1.prompts import DecouplerPrompt
+except ImportError as e:
+    raise ImportError(f"模块导入失败，请确保项目结构正确 (c1/ 和 general/ 同级): {e}")
 
 
 @dataclass
 class RawInputObj:
     """
     [Data Object] 原始输入封装
-    用于标准化进入 Pipeline 的非结构化文本流，保留时序信息以支持时序推理。
+    用于标准化进入 Pipeline 的非结构化文本流，保留时序信息。
     """
     text: str
     timestamp: float = None
-    source: str = "user"
+    source: str = "user"  # 或 'dialogue_stream'
 
     def __post_init__(self):
         if self.timestamp is None:
@@ -36,125 +55,119 @@ class RawInputObj:
 
 class SemanticDecoupler:
     """
-    【研究内容一(1)：多粒度语义正交分解器 (Multi-Granularity Orthogonal Decoupler)】
+    【核心组件】双流语义正交分解器
 
-    核心科研逻辑：
-    该模块是整个记忆系统的“入水口”，负责解决非结构化对话流中“信息纠缠”与“信噪比低”的问题。
-
-    架构设计 (Architecture Design):
+    架构升级说明 (Architecture Upgrade):
     -------------------------------------------------------
-    1. 理论基础：双流认知架构 (Dual-Stream Cognitive Architecture)
-       - 模拟人脑将“情景记忆 (Episodic)”与“语义记忆 (Semantic)”分离的机制。
-       - 将混杂文本流拆解为独立的特征子空间，防止时序信息与逻辑规则混淆。
+    基于“内外双流 (Inner-Outer Dual-Stream)”认知架构，将记忆分解为：
 
-    2. 核心机制：基于 Schema 的正交投影 (Schema-Based Orthogonal Projection)
-       - 利用 LLM 的 In-Context Learning 能力，强约束模型将输入映射到四个预定义的正交槽位：
-         [Event] / [Entity] / [Knowledge] / [Rule]。
-       - 这种解耦是后续“高密度压缩”和“精确推理”的前提。
+    1. Semantic Stream (静态/抽象):
+       - [semantic_profile]: 用户模型 (User Model) - 属性、偏好
+       - [semantic_knowledge]: 世界模型 (World Model) - 事实、常识
+
+    2. Episodic Stream (动态/具体):
+       - [episodic_activity]: 外部世界 (Outer World) - 行为、事件
+       - [episodic_thought]: 内部世界 (Inner World) - 意图、情绪、动机
     -------------------------------------------------------
     """
 
     def __init__(self, llm_model: BaseModel):
         """
         初始化分解器
-        :param llm_model: 传入初始化好的 Teacher Model (如 GLM-4/Llama-3)
+        :param llm_model: 已初始化的 LLM 实例 (如 ZhipuChat)
         """
         self.llm = llm_model
-
-        # --- Schema Definition (核心定义的语义投影空间) ---
-        # 对应 PPT 中的“多视图正交槽位定义”
-        # 这里的 Prompt 设计体现了“模式遵循 (Schema Following)”的技术路线
-        self.system_prompt = """
-        你是一个认知记忆系统的预处理模块。请将用户的输入文本进行“多粒度正交分解”，拆解为以下四类记忆原子：
-
-        1. [Event] 情景/事件：包含时间、动作的动态过程（如"用户去了..."）。
-           -> 对应 Episodic Stream (时序流)
-        2. [Entity] 实体：关键名词、人名、地名或物体（仅提取核心实体）。
-           -> 对应 Concept Graph Node (概念节点)
-        3. [Knowledge] 知识：客观事实、定义或常识（如"地球是圆的"）。
-           -> 对应 Semantic Stream (语义流-客观)
-        4. [Rule] 规则：用户的显式指令、偏好或约束条件（如"用户喜欢..."）。
-           -> 对应 Semantic Stream (语义流-主观)
-
-        约束：
-        - 去除口语冗余（如“那个”、“嗯”）。
-        - 保持原子的独立语义完整性。
-        - **必须**使用 Markdown 代码块输出 JSON，格式如下：
-        ```json
-        {
-            "event": ["...", "..."],
-            "entity": ["...", "..."],
-            "knowledge": ["...", "..."],
-            "rule": ["...", "..."]
-        }
-        ```
-        """
+        # 直接使用 c1/prompts.py 中定义的 System Prompt
+        self.system_prompt = DecouplerPrompt.SYSTEM
 
     def decouple(self, raw_input: RawInputObj) -> List[DecoupledMemoryAtom]:
         """
-        [主入口] 执行分解流水线 (Execution Pipeline)。
+        [主入口] 执行分解流水线 (Execution Pipeline)
 
-        流程：
-        1. Context Injection: 注入时间戳上下文。
-        2. Inference: 调用 LLM 进行正交投影。
-        3. Fallback: 异常熔断与降级处理。
-        4. Atomization: 归一化封装为记忆原子。
+        Args:
+            raw_input: 包含文本和时间戳的原始输入对象
+
+        Returns:
+            List[DecoupledMemoryAtom]: 分解后的记忆原子列表
         """
 
         # 1. 构造上下文 (Context Construction)
-        # 将时间维度显式注入，辅助模型判断 Event 的时序属性
-        user_content = f"Time: {raw_input.timestamp}\nText: {raw_input.text}"
+        # 使用 Prompt 类提供的静态方法构建用户输入 (可扩展性更好)
+        user_content = DecouplerPrompt.build_user_input(raw_input.text)
 
         messages = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": user_content}
         ]
 
-        print(f"--- [Decoupler] 正在调用大模型分解: {raw_input.text[:20]}... ---")
+        # 打印日志方便调试 (截取前30字符，去除换行)
+        log_text = raw_input.text[:30].replace('\n', ' ')
+        print(f"--- [Decoupler] 正在调用大模型分解: {log_text}... ---")
 
         # 2. LLM 推理 (Inference)
         response_data = self.llm.chat(messages)
 
-        # 3. 鲁棒性工程：错误处理与降级 (Robustness & Fallback)
-        # 如果模型输出格式崩坏或 API 报错，执行“降级策略”：
-        # 将整句话作为单一 Event 存储，保证系统可用性 (Availability) > 完美性 (Perfection)
+        # 3. 鲁棒性工程：错误处理与熔断 (Error Handling)
         if "error" in response_data:
             print(f"[Error] 模型调用失败: {response_data.get('details')}")
-            # Fallback: Treat the whole text as a single raw event
-            return [DecoupledMemoryAtom(content=raw_input.text, atom_type="event", source_text=raw_input.text)]
+            # 降级策略 (Fallback):
+            # 如果解析失败，将整段话作为未分类的 'episodic_activity' 存入，保证不丢数据
+            return [DecoupledMemoryAtom(
+                content=raw_input.text,
+                atom_type="episodic_activity",
+                source_text=raw_input.text,
+                timestamp=self._format_time(raw_input.timestamp)
+            )]
 
         # 4. 原子化与归一化 (Atomization & Normalization)
         atoms = []
-        parsed_data = response_data  # 假设 LLM 基类已处理 JSON 解析
+        parsed_json = response_data  # 假设 LLM 基类已处理 JSON 解析，返回 dict
 
-        # 类型映射表：处理 LLM 可能输出的复数形式或大小写差异
-        type_map = {
-            'event': 'event', 'events': 'event',
-            'entity': 'entity', 'entities': 'entity',
-            'knowledge': 'knowledge',
-            'rule': 'rule', 'rules': 'rule'
-        }
+        # 定义需要提取的目标 Key (对应四视图)
+        target_keys = [
+            "semantic_profile",
+            "semantic_knowledge",
+            "episodic_activity",
+            "episodic_thought"
+        ]
 
-        for key, content_list in parsed_data.items():
-            # 过滤掉非 Schema 定义的幻觉 Key
-            norm_type = type_map.get(key.lower())
-            if not norm_type:
+        formatted_time = self._format_time(raw_input.timestamp)
+
+        for key in target_keys:
+            # 容错处理：获取数据，防范 LLM 偶尔输出复数 key (e.g., semantic_profiles)
+            content_list = parsed_json.get(key) or parsed_json.get(key + 's')
+
+            if not content_list or not isinstance(content_list, list):
                 continue
 
-            if isinstance(content_list, list):
-                for content in content_list:
-                    # 实例化原子对象
-                    # 这一步完成了从“非结构化文本”到“可计算对象”的质变
-                    atom = DecoupledMemoryAtom(
-                        content=content,
-                        atom_type=norm_type,
-                        source_text=raw_input.text,  # 保留溯源信息 (Provenance)
-                        timestamp=time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(raw_input.timestamp))
-                    )
-                    atoms.append(atom)
+            for content in content_list:
+                clean_content = str(content).strip()
+
+                # --- [关键清洗步骤] 实体过滤 ---
+                # 英文语境下，如果内容少于 3 个单词，极大概率是残留的单一实体 (如 "Dogs", "The sky")
+                # 这种碎片对记忆检索无用且有害，直接丢弃
+                if len(clean_content.split()) < 3:
+                    # print(f"  [Filter] 丢弃过短原子(实体残留): {clean_content}")
+                    continue
+
+                # 实例化原子对象
+                atom = DecoupledMemoryAtom(
+                    content=clean_content,
+                    atom_type=key,  # 直接使用新的类型名
+                    source_text=raw_input.text,  # 保留溯源信息
+                    timestamp=formatted_time
+                )
+                atoms.append(atom)
 
         print(f"  -> 初步提取 {len(atoms)} 条原子")
         return atoms
+
+    def _format_time(self, timestamp: float) -> str:
+        """辅助函数：格式化时间戳"""
+        try:
+            return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp))
+        except Exception:
+            return str(timestamp)
 
 
 # test_real_llm.py
@@ -167,47 +180,90 @@ sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from general.model import ZhipuChat
 from general.base_memory import AgenticMemorySystem
 
+if __name__ == "__main__":
+    print(">>> [Demo] 初始化双流语义解耦器...")
 
-def main():
-    # 1. 初始化大模型
-    print(">>> 初始化大模型...")
-    config_path = "../config/llm_config.yaml"
+    # 1. 尝试初始化 LLM (需要确保 config 路径正确)
     try:
+        from general.model import ZhipuChat
+
+        # 假设 config 在项目根目录的 config 文件夹下
+        config_path = os.path.join(root_dir, "config", "llm_config.yaml")
         llm = ZhipuChat(config_path)
     except Exception as e:
-        print(f"模型初始化失败，请检查配置文件路径: {e}")
-        return
+        print(f"[Fatal] 模型初始化失败: {e}")
+        print("请检查 config/llm_config.yaml 是否存在且配置正确。")
+        exit()
 
-    # 2. 初始化分解器和记忆系统
+    # 2. 实例化解耦器
     decoupler = SemanticDecoupler(llm)
-    memory_sys = AgenticMemorySystem()
 
-    # 3. 构造一个复杂的测试输入
-    input_text = "哎，那个，我之前不是说喜欢吃苹果吗？我现在改主意了，因为苹果太酸了。你知道吗，苹果其实属于蔷薇科。以后每天早上给我准备一根香蕉吧。"
-    raw_input = RawInputObj(text=input_text)
+    # 3. 构造模拟数据 (LoCoMo 风格双人对话)
+    # 场景设计：
+    # - Activity: 去过爵士俱乐部 (Past)
+    # - Profile: Alex 是夜猫子，吃素 (Static)
+    # - Knowledge: 提到天气预报/常识 (Objective)
+    # - Thought: 期待徒步 (Emotion)，打算买零食 (Intent)
 
-    # 4. 执行分解 (调用真实 API)
-    print(f"\n>>> 输入文本: {input_text}")
+    mock_dialogue = """
+[Jordan]: Hey Alex, I went to that new jazz club last night. The live performance was amazing!
+[Alex]: Oh nice. I actually stayed home. I've been trying to fix my sleep schedule, but being a night owl is really hard.
+[Jordan]: I feel you. By the way, are we still on for hiking this Saturday? The weather forecast says it will be sunny and perfect for climbing.
+[Alex]: Definitely. I'm really looking forward to getting out of the city. I need to buy some vegetarian snacks for the trip though, maybe tomorrow.
+    """
+
+    print(f"\n{'=' * 60}")
+    print(f"Input Dialogue Stream (LoCoMo Style):")
+    print(f"{'=' * 60}")
+    print(mock_dialogue.strip())
+    print(f"{'=' * 60}\n")
+
+    # 4. 执行解耦
+    raw_input = RawInputObj(text=mock_dialogue)
+    start_time = time.time()
     atoms = decoupler.decouple(raw_input)
+    cost_time = time.time() - start_time
 
-    # 5. 展示结果
-    print(f"\n>>> 分解成功！共得到 {len(atoms)} 个记忆原子：")
-    print("-" * 50)
+    # 5. 格式化输出结果 (按四视图分类展示)
+    print(f"\n>>> 解耦完成 (耗时: {cost_time:.2f}s) | 共提取 {len(atoms)} 个原子")
+
+    # 简单的分类桶
+    views = {
+        "semantic_profile": [],
+        "semantic_knowledge": [],
+        "episodic_activity": [],
+        "episodic_thought": []
+    }
+
     for atom in atoms:
-        # 使用我们定义的 __repr__ 打印，查看类型和重要性
-        print(f"{atom}")
-    print("-" * 50)
+        if atom.atom_type in views:
+            views[atom.atom_type].append(atom.content)
+        else:
+            # 防御性编程：如果有漏网之鱼
+            print(f"[Warn] Unknown Type: {atom.atom_type} -> {atom.content}")
 
-    # 6. 存入记忆系统并检索测试
-    print("\n>>> 存入记忆系统并测试检索 '水果偏好'...")
-    for atom in atoms:
-        memory_sys.add_note(atom.content)  # 注意：这里为了简单用了 add_note，实际可用 memory_manager.add_memory(atom)
+    # 打印结果矩阵
+    print("\n" + "#" * 20 + " Inner-Outer Dual-Stream Architecture " + "#" * 20)
 
-    # 检索
-    results = memory_sys.find_related_memories("用户现在喜欢吃什么水果？")
-    for res in results:
-        print(f"Retrieval Result: {res.content}")
+    # A. Semantic Stream
+    print(f"\n【A. Semantic Stream (Static)】")
+    print(f"  1. [Profile] (User Model):")
+    for item in views["semantic_profile"]:
+        print(f"     - {item}")
 
+    print(f"  2. [Knowledge] (World Model):")
+    for item in views["semantic_knowledge"]:
+        print(f"     - {item}")
 
-if __name__ == "__main__":
-    main()
+    # B. Episodic Stream
+    print(f"\n【B. Episodic Stream (Dynamic)】")
+    print(f"  3. [Activity] (Outer World / History):")
+    for item in views["episodic_activity"]:
+        print(f"     - {item}")
+
+    print(f"  4. [Thought] (Inner World / Intent & Emotion):")
+    for item in views["episodic_thought"]:
+        print(f"     - {item}")
+
+    print("\n" + "#" * 78)
+
