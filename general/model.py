@@ -59,48 +59,6 @@ class BaseModel(ABC):
         pass
 
 
-'''非pipeline形式'''
-
-
-# from transformers import AutoModelForCausalLM
-# from transformers import AutoTokenizer
-#
-# tokenizer = AutoTokenizer.from_pretrained("./weight/Llama-2-7b-chat-hf",
-#                                           padding_side="left")
-# tokenizer.pad_token = tokenizer.eos_token
-# model = AutoModelForCausalLM.from_pretrained('./weight/Llama-2-7b-chat-hf',
-#                                              device_map="auto",
-#                                              load_in_8bit=True
-#                                              )
-# last_five_actions: List[str] = []
-# last_five_states: List[str] = []
-#
-# message = [
-#     {
-#         "role": "system",
-#         "content": "You're a helpful game expert, Your task is to play a game based on natural language text."
-#                    "Please first think step-by-step and then tell what to do next. "
-#                    "Organize your output in a json formatted as "
-#                    "Dict{'step_by_step_thinking': Str(explanation),'action': Str{action}}. "
-#     },
-#     {
-#         "role": "user",
-#         "content": "",
-#         "last five action": 1
-#     }
-# ]
-#
-# model_inputs = tokenizer(['Explain antibiotics '
-#                           'A:'
-#                           'Please do not repeat the question, give a direct answer'], return_tensors="pt").to("cuda")
-# generated_ids = model.generate(**model_inputs,
-#                                max_new_tokens=50,
-#                                do_sample=True,
-#                                temperature=0.5,
-#                                )
-# ans = tokenizer.batch_decode(generated_ids, skip_special_tokens=True)
-# print(ans)
-
 class LlamaChat(BaseModel):
     def __init__(self, config_path: str = './config/llm_config.yaml') -> None:
         super().__init__(config_path)
@@ -135,17 +93,6 @@ class LlamaChat(BaseModel):
             # Handle errors in the request
             raise RuntimeError(f"Error during API request: {e}")
 
-        # if self.pipeline is None:
-        #     raise RuntimeError("Model pipeline is not loaded.")
-        # answer = self.pipeline(
-        #     prompt,
-        #     do_sample=True,
-        #     top_k=10,
-        #     eos_token_id=self.tokenizer.eos_token_id,
-        #     max_new_tokens=150,
-        #     truncation=True
-        # )[0]
-        # return answer
 
     def load_model(self) -> None:
         """

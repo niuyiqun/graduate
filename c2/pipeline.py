@@ -156,38 +156,37 @@ if __name__ == "__main__":
 # -*- coding: utf-8 -*-
 """
 ================================================================================
-📝 TODO LIST: Chapter 2 神经符号协同演化系统完善计划
+📝 TODO LIST: Chapter 2 神经符号协同演化系统 - 挂起状态
 ================================================================================
-当前状态：框架逻辑已跑通，处于 Mock（模拟）模式。
-下一步目标：接入真实组件（LLM, VectorDB, PyG）。
+📅 日期: 2026-01-07
+🚩 当前进度: 
+   - [x] 框架 (Pipeline) 已跑通。
+   - [x] 语义侧 (Semantic): 已接入 ZhipuAI + 本地 MiniLM 模型。
+   - [x] 演化侧 (Evolution): 已接入 ZhipuAI 进行真实 NLI 冲突检测。
+   - [ ] 符号侧 (Structural): 目前仍为 Mock 版本 (z=x)，尚未应用 GNN 训练逻辑。
 
-[1] 🧠 LLM 接入 (The Neural Side)
-    - [ ] utils/llm_client.py: 
-          封装统一的 LLM 客户端 (Ollama/OpenAI)，支持 qwen2.5/deepseek 等模型。
-    - [ ] builders/semantic.py -> _llm_extract(): 
-          替换 Mock 规则，使用 Prompt 让 LLM 提取文本中的【实体】和【显式关系】。
-    - [ ] builders/evolution.py -> _check_conflict():
-          替换 Mock 规则，使用 NLI Prompt 让 LLM 判断新旧原子是否【事实冲突】。
-    - [ ] builders/structural.py -> _llm_verify():
-          替换 Mock 规则，让 LLM 验证 GNN 推荐的两个节点是否存在【逻辑/因果关联】。
+--------------------------------------------------------------------------------
+🚀 下次启动时的任务清单 (按顺序执行):
 
-[2] 🔢 向量检索 (The Memory Side)
-    - [ ] graph_storage.py: 
-          集成 Embedding 模型 (如 bge-m3)，在节点入库时生成 vector。
-    - [ ] builders/evolution.py -> _mock_vector_search():
-          接入 ChromaDB 或 FAISS，实现真实的 Top-K 语义检索，而非遍历列表。
+[1] 🛠️ 环境依赖 (Environment)
+    - [ ] 安装 PyTorch Geometric (PyG)。
+          这是下一版 GNN 代码运行的基础。
+          命令: pip install torch-geometric
 
-[3] 🕸️ GNN 深度实现 (The Symbolic Side)
-    - [ ] builders/structural.py:
-          完善 AtomGraph 到 PyG Data (x, edge_index, edge_attr) 的转换逻辑。
-    - [ ] builders/structural.py -> SimpleRGCN:
-          定义标准的 RGCN/GAT 网络结构，加载预训练权重或设计自监督 Loss 进行微调。
+[2] 💻 代码升级 (Code Update)
+    - [ ] 修改 c2/builders/structural.py。
+          将当前的 Mock 逻辑替换为【自监督训练版】代码 (包含 NeuroSymbolicGNN 类和 _train_gnn 循环)。
+          (代码见聊天记录 "上策：正统流")
 
-[4] ⚙️ 工程化配置
-    - [ ] c2/config.py: 
-          提取硬编码的阈值 (冲突阈值 0.7, 推荐阈值 0.85) 到配置文件。
-    - [ ] 日志系统: 
-          将 print() 替换为 logger.info/debug，方便记录实验数据。
+[3] 🧪 验证与调优 (Verify)
+    - [ ] 运行 pipeline.py。
+          观察控制台是否出现 "Training GNN for 50 epochs..." 日志。
+    - [ ] 检查 "Final Loss" 是否收敛。
+    - [ ] 观察新的 A04 <-> A01 隐式连接是否被正确召回。
+
+[4] 🔮 未来优化 (Future)
+    - [ ] 引入 Vector Database (Chroma/FAISS) 替换列表遍历。
+    - [ ] 实现图谱的保存与加载 (Persistance)。
 ================================================================================
 """
 
