@@ -9,96 +9,114 @@
 # c2/builders/semantic.py
 import sys
 import os
+import json
+import re
 from typing import List, Set
 
-# === 路径设置 ===
-# 获取当前文件的上上上级目录 (即 graduate 根目录)
+# === 路径与配置导入 ===
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(current_dir))
 sys.path.append(project_root)
 
-# 导入 ZhipuChat
+# 导入配置
+try:
+    from ..config import EMBEDDING_MODEL_PATH, LLM_CONFIG_PATH
+except ImportError:
+    # Fallback for direct execution
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from config import EMBEDDING_MODEL_PATH, LLM_CONFIG_PATH
+
+# 导入 LLM
 try:
     from general.model import ZhipuChat
 except ImportError:
-    sys.path.append("..")
     from model import ZhipuChat
-
-# 导入 SentenceTransformer
-try:
-    from sentence_transformers import SentenceTransformer
-except ImportError:
-    SentenceTransformer = None
 
 from .base import BaseGraphBuilder
 from ..definitions import EdgeType, GraphNode
 from ..graph_storage import AtomGraph
 from ..prompts import ENTITY_EXTRACTION_PROMPT
 
+# 导入 SentenceTransformer
+try:
+    from sentence_transformers import SentenceTransformer
+
+    HAS_EMBEDDING_MODEL = True
+except ImportError:
+    HAS_EMBEDDING_MODEL = False
+    print("⚠️ sentence-transformers not found. Embeddings will be random.")
+
 
 class SemanticBuilder(BaseGraphBuilder):
+    """
+    [Phase 1] 语义侧 (Semantic Side)
+    职责:
+    1. 提取实体 (Entities) -> 构建显式语义关联
+    2. 生成向量 (Embeddings) -> 为后续 GNN 准备特征
+    """
+
     def __init__(self):
-        # 1. 初始化 LLM (ZhipuChat)
-        config_path = os.path.join(project_root, "config/llm_config.yaml")
-        if not os.path.exists(config_path):
-            config_path = "./config/llm_config.yaml"
+        # 1. 初始化 LLM (用于实体提取)
+        print(f"  [Semantic] Loading LLM from config: {LLM_CONFIG_PATH}")
+        self.llm = ZhipuChat(LLM_CONFIG_PATH)
 
-        print(f"  [Semantic] Loading LLM from config: {config_path}")
-        self.llm = ZhipuChat(config_path)
-
-        # 2. 初始化本地 Embedding 模型
-        # 目标路径: graduate/model/all-MiniLM-L6-v2
-        local_model_path = os.path.join(project_root, "model", "all-MiniLM-L6-v2")
-
-        self.embed_model = None
-        if SentenceTransformer:
-            if os.path.exists(local_model_path):
-                print(f"  [Semantic] Loading Local Embedding Model: {local_model_path}")
-                self.embed_model = SentenceTransformer(local_model_path)
+        # 2. 初始化 Embedding 模型 (用于生成节点特征)
+        self.encoder = None
+        if HAS_EMBEDDING_MODEL:
+            print(f"  [Semantic] Loading Local Embedding Model: {EMBEDDING_MODEL_PATH}")
+            if os.path.exists(EMBEDDING_MODEL_PATH):
+                self.encoder = SentenceTransformer(EMBEDDING_MODEL_PATH)
             else:
-                print(f"⚠️ [Warning] Local model not found at {local_model_path}")
-                print("  Trying to download from Hugging Face instead...")
-                self.embed_model = SentenceTransformer('all-MiniLM-L6-v2')
-        else:
-            print("❌ [Error] sentence_transformers library not installed.")
+                print(f"    ⚠️ Model path not found, downloading 'all-MiniLM-L6-v2'...")
+                self.encoder = SentenceTransformer('all-MiniLM-L6-v2')
 
     def process(self, new_nodes: List[GraphNode], graph: AtomGraph):
         print("  [Semantic] 正在利用 LLM 提取实体并构建骨架...")
-        existing_nodes = graph.get_all_nodes()
 
+        # 1. 批量/逐个生成 Embedding
+        texts = [n.content for n in new_nodes]
+        if self.encoder:
+            embeddings = self.encoder.encode(texts)
+            for node, emb in zip(new_nodes, embeddings):
+                node.embedding = emb.tolist()  # 转存为 list 方便序列化
+
+        # 2. 实体提取与连边
         for node in new_nodes:
-            # === A. 生成 Embedding (使用本地模型) ===
-            if node.embedding is None and self.embed_model:
-                try:
-                    # encode 返回 numpy array，需转 list
-                    node.embedding = self.embed_model.encode(node.content).tolist()
-                except Exception as e:
-                    print(f"  Embedding Error: {e}")
+            # A. 提取实体
+            entities = self._extract_entities(node.content)
+            node.entities = list(entities)
 
-            # === B. 真实 LLM 提取实体 ===
-            if not node.entities:
-                node.entities = self._llm_extract(node.content)
+            # B. 寻找语义关联 (显式)
+            # 遍历图中已有节点，如果实体有交集，则连边
+            all_nodes = graph.get_all_nodes()
+            for existing_node in all_nodes:
+                if existing_node.id == node.id: continue
 
-            if not node.entities: continue
+                # 计算实体交集
+                intersection = set(node.entities) & set(existing_node.entities)
+                if intersection:
+                    # 建立双向语义边
+                    graph.add_edge(node.id, existing_node.id, EdgeType.SEMANTIC, weight=len(intersection))
+                    graph.add_edge(existing_node.id, node.id, EdgeType.SEMANTIC, weight=len(intersection))
 
-            # === C. 连线逻辑 ===
-            for other in existing_nodes:
-                if node.id == other.id: continue
-                shared = node.entities.intersection(other.entities)
-                if shared:
-                    w = len(shared) * 1.0
-                    graph.add_edge(node.id, other.id, EdgeType.SEMANTIC, weight=w)
-                    graph.add_edge(other.id, node.id, EdgeType.SEMANTIC, weight=w)
-
-    def _llm_extract(self, text: str) -> Set[str]:
+    def _extract_entities(self, text: str) -> Set[str]:
+        """调用 LLM 提取实体"""
         prompt = ENTITY_EXTRACTION_PROMPT.format(text=text)
         messages = [{"role": "user", "content": prompt}]
 
         try:
-            result = self.llm.chat(messages)
-            if isinstance(result, dict) and "entities" in result:
-                return set(result["entities"])
-        except Exception as e:
-            print(f"LLM Extract Error: {e}")
+            response = self.llm.chat(messages)
+            # 解析 JSON
+            if isinstance(response, dict):
+                content = response.get("content", "[]")
+            else:
+                content = str(response)
 
-        return set()
+            # 清理 Markdown 代码块
+            content = re.sub(r'```json\s*|\s*```', '', content).strip()
+
+            entities = json.loads(content)
+            return set(entities)
+        except Exception as e:
+            print(f"    ⚠️ Entity extraction failed: {e}")
+            return set()

@@ -12,85 +12,80 @@ import sys
 import os
 from typing import List
 
-# === 路径设置：为了导入 model.py ===
+# === 路径与配置导入 ===
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(os.path.dirname(current_dir))
 sys.path.append(project_root)
 
-# 导入 ZhipuChat
+# 导入配置
+try:
+    from ..config import CONFLICT_RETRIEVAL_WINDOW, DECAY_FACTOR, LLM_CONFIG_PATH
+except ImportError:
+    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from config import CONFLICT_RETRIEVAL_WINDOW, DECAY_FACTOR, LLM_CONFIG_PATH
+
+# 导入 LLM
 try:
     from general.model import ZhipuChat
 except ImportError:
-    sys.path.append("..")
     from model import ZhipuChat
 
 from .base import BaseGraphBuilder
 from ..definitions import EdgeType, GraphNode
 from ..graph_storage import AtomGraph
-from ..prompts import CONFLICT_DETECTION_PROMPT  # 导入我们在 prompts.py 定义的提示词
+from ..prompts import CONFLICT_DETECTION_PROMPT
 
 
 class EvolutionBuilder(BaseGraphBuilder):
     """
-    [Phase 2] 演化侧 (Evolution Side)
-    利用 LLM 进行 NLI (自然语言推理) 检测冲突，建立版本演进边。
+    [Phase 2] 神经侧 (Neural Side) - 演化与冲突检测
+    职责:
+    1. 检测新记忆与旧记忆的冲突 (NLI)。
+    2. 如果冲突，建立 VERSION 边，并对旧节点降权 (Decay)。
     """
 
     def __init__(self):
-        # 1. 初始化 LLM
-        config_path = os.path.join(project_root, "config/llm_config.yaml")
-        if not os.path.exists(config_path):
-            config_path = "./config/llm_config.yaml"
-
         print(f"  [Evolution] Loading LLM for Conflict Detection...")
-        self.llm = ZhipuChat(config_path)
+        self.llm = ZhipuChat(LLM_CONFIG_PATH)
 
     def process(self, new_nodes: List[GraphNode], graph: AtomGraph):
         print("  [Evolution] 正在调用 LLM 进行冲突检测...")
+
         all_nodes = graph.get_all_nodes()
 
-        for new_node in new_nodes:
-            # === 1. 检索候选 (Retrieval) ===
-            # TODO: 未来这里应该用 Vector DB (chroma/faiss) 做 Top-K 检索
-            # 目前暂时暴力遍历最近的 10 个节点作为演示
-            candidates = all_nodes[-10:]
+        # 只与最近的 N 个节点比较 (由 config 控制窗口大小)
+        candidates = all_nodes[-CONFLICT_RETRIEVAL_WINDOW:] if len(all_nodes) > CONFLICT_RETRIEVAL_WINDOW else all_nodes
 
+        for new_node in new_nodes:
             for old_node in candidates:
-                # 跳过自己
                 if new_node.id == old_node.id: continue
 
-                # === 2. 真实 LLM 冲突检测 (NLI) ===
-                # 只有当两个节点都有 Embedding 且相似度高时才检测冲突 (节省 Token)
-                # 这里为了演示效果，先不做相似度过滤，直接检测
+                # 调用 LLM 判断冲突
+                if self._detect_conflict(new_node.content, old_node.content):
+                    print(f"    ⚠️ [Conflict Detected] '{old_node.content[:15]}...' vs '{new_node.content[:15]}...'")
 
-                if self._check_conflict(old_node, new_node):
-                    print(f"    ⚠️ [Conflict Detected] '{old_node.content[:10]}...' vs '{new_node.content[:10]}...'")
+                    # 1. 建立演化边: New -> Old (取代关系)
+                    graph.add_edge(new_node.id, old_node.id, EdgeType.VERSION)
 
-                    # 3. 建立版本演进边 (Old -> New)
-                    graph.add_edge(old_node.id, new_node.id, EdgeType.VERSION)
+                    # 2. 降低旧节点的激活值 (由 config 控制系数)
+                    old_node.activation *= DECAY_FACTOR
 
-                    # 4. 旧节点降权
-                    old_node.activation *= 0.5
-
-    def _check_conflict(self, n1: GraphNode, n2: GraphNode) -> bool:
+    def _detect_conflict(self, text_a: str, text_b: str) -> bool:
         """
-        调用大模型判断两个节点内容是否冲突
+        利用 LLM 进行 NLI (Natural Language Inference) 推理
         """
-        # 1. 组装 Prompt (使用 prompts.py 中的模板)
-        prompt = CONFLICT_DETECTION_PROMPT.format(old_text=n1.content, new_text=n2.content)
+        prompt = CONFLICT_DETECTION_PROMPT.format(text_a=text_a, text_b=text_b)
         messages = [{"role": "user", "content": prompt}]
 
-        # 2. 调用 LLM
         try:
-            # model.py 会自动解析 JSON 返回字典
             result = self.llm.chat(messages)
-
+            # 解析结果：如果包含 "YES"，则认为冲突
             if isinstance(result, dict):
-                # 获取结果，默认为 NO
-                is_conflict = result.get("is_conflict", "NO").upper()
-                return "YES" in is_conflict
+                content = result.get("content", "NO").upper()
+            else:
+                content = str(result).upper()
 
+            return "YES" in content
         except Exception as e:
-            print(f"  [Evolution] LLM NLI Error: {e}")
-
-        return False
+            print(f"    [Evolution] Error: {e}")
+            return False

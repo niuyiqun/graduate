@@ -9,148 +9,120 @@
 
 # c2/pipeline.py
 import sys
+import os
 from typing import List
 
-# 引入 Chapter 1 定义
-sys.path.append("..")
+# 路径修复 (Standard Project Setup)
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(current_dir)
+sys.path.append(project_root)
+
+# 导入配置
+from c2.config import GRAPH_SAVE_PATH
+
+# 导入核心模块
 try:
     from general.decoupled_memory import DecoupledMemoryAtom
 except ImportError:
-    from .definitions import DecoupledMemoryAtom  # Fallback
+    # Mock Class for standalone testing
+    from dataclasses import dataclass
+
+
+    @dataclass
+    class DecoupledMemoryAtom:
+        content: str
+        atom_type: str = "event"
+        id: str = "0"
+        timestamp: str = "2023-01-01 10:00:00"
 
 from c2.graph_storage import AtomGraph
 from c2.builders.semantic import SemanticBuilder
 from c2.builders.temporal import TemporalBuilder
 from c2.builders.evolution import EvolutionBuilder
 from c2.builders.structural import StructuralBuilder
+from c2.definitions import GraphNode
 
 
 class NeuroSymbolicPipeline:
-    """
-    [Chapter 2 System] 神经符号协同演化系统
-    """
-
     def __init__(self):
+        # 1. 初始化图存储
         self.graph = AtomGraph()
-        self.builders = [
-            SemanticBuilder(),  # 1. 神经侧语义 (LLM)
-            TemporalBuilder(),  # 2. 规则侧时序
-            EvolutionBuilder(),  # 3. 演化侧冲突
-            StructuralBuilder()  # 4. 符号侧结构 (GNN)
-        ]
 
-    def run(self, new_atoms: List[DecoupledMemoryAtom]):
-        print(f"\n=== Pipeline Start: 处理 {len(new_atoms)} 个原子 ===")
+        # 2. 尝试加载旧存档 (增量更新的关键)
+        self.graph.load(GRAPH_SAVE_PATH)
 
-        # 1. 接入标准化
-        new_nodes = [self.graph.add_atom(atom) for atom in new_atoms]
+        # 3. 初始化构建器
+        self.semantic = SemanticBuilder()
+        self.temporal = TemporalBuilder()
+        self.evolution = EvolutionBuilder()
+        self.structural = StructuralBuilder()
 
-        # 2. 依次执行构建
-        for builder in self.builders:
-            builder.process(new_nodes, self.graph)
+    def run(self, atoms: List[DecoupledMemoryAtom]):
+        """
+        运行 Pipeline 的主入口
+        """
+        print(f"\n=== Pipeline Start: Input {len(atoms)} Atoms ===")
 
-        self._stats()
+        # Step 1: 转换原子 (MemoryAtom -> GraphNode)
+        # 只处理图中不存在的新节点
+        new_nodes = []
+        for atom in atoms:
+            # 如果这id已经处理过了，就跳过 (去重)
+            if self.graph.get_node(str(atom.id)):
+                continue
 
-    def _stats(self):
+            node = GraphNode(
+                id=str(atom.id),
+                content=atom.content,
+                timestamp=atom.timestamp,
+                type=atom.atom_type
+            )
+            self.graph.add_node(node)
+            new_nodes.append(node)
+
+        if not new_nodes:
+            print("⚠️ No new unique nodes to process.")
+            return
+
+        print(f"🔄 Processing {len(new_nodes)} new unique nodes...")
+
+        # Step 2: 语义构建 (Semantic) - 提取实体 & Embedding
+        self.semantic.process(new_nodes, self.graph)
+
+        # Step 3: 时序构建 (Temporal) - 连接时间线
+        self.temporal.process(new_nodes, self.graph)
+
+        # Step 4: 演化构建 (Evolution) - 冲突检测 & 版本控制
+        self.evolution.process(new_nodes, self.graph)
+
+        # Step 5: 结构构建 (Structural) - GNN 自监督训练 & 推理
+        self.structural.process(new_nodes, self.graph)
+
+        # Step 6: 自动保存 (Auto-Save)
+        self.graph.save(GRAPH_SAVE_PATH)
+
+        self._print_stats()
+
+    def _print_stats(self):
         nodes = self.graph.get_all_nodes()
-        edges = sum(len(n.edges) for n in nodes)
-        print(f"=== Pipeline End: Nodes={len(nodes)}, Edges={edges} ===")
+        edge_count = sum(len(n.edges) for n in nodes)
+        print(f"\n=== Pipeline End: Total Nodes={len(nodes)}, Total Edges={edge_count} ===")
 
 
+# ==========================================
+# 测试入口 (Mock Data)
+# ==========================================
 if __name__ == "__main__":
-    # 0. 准备环境
-    # 如果 DecoupledMemoryAtom 是 Mock 的，确保它有必要的属性
-    try:
-        from general.decoupled_memory import DecoupledMemoryAtom
-    except ImportError:
-        # 本地测试用的 Mock 类
-        from dataclasses import dataclass
-
-
-        @dataclass
-        class DecoupledMemoryAtom:
-            content: str
-            atom_type: str = "event"
-            id: str = "0"
-            timestamp: str = "2023-01-01 10:00:00"
-
-    print("\n" + "=" * 50)
-    print("🧪 启动 Neuro-Symbolic Pipeline 集成测试")
-    print("=" * 50)
-
-    # 1. 构造剧本数据 (Scenario Data)
-    # 我们设计 4 个原子，旨在触发所有类型的边
+    # 模拟数据
     atoms = [
-        # Atom A: 基础事件
-        DecoupledMemoryAtom(
-            id="A01",
-            content="Andy 也就是我，非常喜欢户外徒步运动。",
-            atom_type="profile",
-            timestamp="2023-10-01 09:00:00"
-        ),
-
-        # Atom B: 应该与 A01 产生 [SEMANTIC] 关联 (共享实体: Andy, 徒步)
-        # 且应该与 A01 产生 [TEMPORAL] 关联 (时间晚 5 分钟)
-        DecoupledMemoryAtom(
-            id="A02",
-            content="Andy 周末去了 Fox Hollow 国家公园。",
-            atom_type="event",
-            timestamp="2023-10-01 09:05:00"
-        ),
-
-        # Atom C: 这是一个冲突信息，应该触发 [VERSION] 演化
-        # (原本喜欢徒步，现在说讨厌，模拟冲突)
-        DecoupledMemoryAtom(
-            id="A03",
-            content="Andy 现在非常讨厌徒步，再也不去了。",
-            atom_type="update",
-            timestamp="2023-10-02 10:00:00"
-        ),
-
-        # Atom D: 隐式关联，应该由 GNN 触发 [IMPLICIT]
-        # (虽然没提 Andy，但买了登山靴，逻辑上与徒步相关)
-        DecoupledMemoryAtom(
-            id="A04",
-            content="买了一双昂贵的专业登山靴。",
-            atom_type="event",
-            timestamp="2023-10-03 10:00:00"
-        )
+        DecoupledMemoryAtom(id="A01", content="Andy 也就是我，非常喜欢户外徒步运动。", timestamp="2023-10-01 09:00"),
+        DecoupledMemoryAtom(id="A02", content="Andy 周末去了 Fox Hollow 公园。", timestamp="2023-10-02 14:00"),
+        DecoupledMemoryAtom(id="A03", content="Andy 现在非常讨厌徒步，再也不去了。", timestamp="2023-10-05 10:00"),
+        DecoupledMemoryAtom(id="A04", content="买了一双昂贵的专业登山靴。", timestamp="2023-10-06 11:00"),
     ]
 
-    # 2. 初始化流水线
     pipeline = NeuroSymbolicPipeline()
-
-    # 3. 运行处理
     pipeline.run(atoms)
-
-    # 4. 结果可视化验证
-    print("\n📊 图谱构建结果分析:")
-    all_nodes = pipeline.graph.get_all_nodes()
-
-    for node in all_nodes:
-        print(f"\n📍 节点 [{node.id}] (Act:{node.activation:.1f}): {node.content[:20]}...")
-        if not node.edges:
-            print("   (孤立节点)")
-        for edge in node.edges:
-            # 打印边的类型和目标
-            target_node = pipeline.graph.nodes.get(edge.target)
-            target_content = target_node.content[:10] if target_node else "Unknown"
-
-            icon = "🔗"
-            if edge.type.value == "SEMANTIC":
-                icon = "🧠 [显式语义]"
-            elif edge.type.value == "TEMPORAL":
-                icon = "⏱️ [时序流]"
-            elif edge.type.value == "EVOLVES_TO":
-                icon = "🔄 [版本演化]"
-            elif edge.type.value == "IMPLICIT":
-                icon = "🤖 [神经推理]"
-
-            print(f"   |-- {icon} --> [{edge.target}] {target_content}...")
-
-    print("\n" + "=" * 50)
-    print("✅ 测试完成！请检查日志中是否包含了所有四种类型的边。")
-    print("=" * 50)
 
 
 # -*- coding: utf-8 -*-
