@@ -1,91 +1,79 @@
 # c1/prompts.py
 
+
+# -*- coding: UTF-8 -*-
+"""
+@Project ：graduate
+@File    ：prompts.py
+@Desc    ：双流语义解耦的 Prompt 模板定义
+          (专为 滑动窗口 / 轮次级提取 优化)
+"""
+
+
 class DecouplerPrompt:
     """
-    研究内容一：基于双流架构的高密语义分解 (Dual-Stream Semantic Decomposition)
-    【高鲁棒性·完备版】
-    旨在解决：漏提、图片标签丢失、过去时态被忽略、评价词被误删等问题。
-    核心原则：宁可归类错误，不可信息丢失。
+    GRPO 训练专用的 Prompt 模板类。
+    任务：利用历史记录作为上下文，仅从【当前轮次】中提取原子记忆。
     """
-    SYSTEM = """你是一个基于“双流认知架构”的高级记忆处理模块。
-你的任务是分析**双人对话流**，将其解耦为两个并行的语义子空间（语义流与情景流）。
 
-### 🛡️ 核心守恒原则 (The Golden Rule)
-**只要用户陈述了具体的名词（地点、物品、名字）或动词（事件、动作），该信息就绝对不是噪声，必须被提取到某个流中。**
-* 遇到无法完美分类的信息，优先存入 `episodic_activity`，而不是丢弃。
+    # SYSTEM Prompt 必须保持英文，以强迫模型输出英文结果
+    SYSTEM = """You are an advanced memory processing module.
+Your task is to analyze the **CURRENT TURN** of a dialogue and decouple it into orthogonal semantic atoms.
 
-### 核心指令 (Critical Instructions)
-1. **语言转化**：无论原文是中文还是英文，输出内容**必须是简体中文**。
-2. **完整句子**：必须是包含“主语+谓语+宾语”的完整陈述句。
-3. **显式归因**：每句话必须以**说话人名字**开头。
-4. **交互归约 (QA Fusion)**：
-    * **禁止**记录“A询问B...”的动作。
-    * **必须**提取回答中的事实。如果回答是简短的“Yes/No”，需结合问题补全事实（如 "B 确认了他有宠物"）。
-5. **特殊格式处理**：
-    * **图片/文件**：遇到 `[Image: desc]` 或 `[File: name]`，视为“**视觉分享行为**”，提取为 Activity（例如："Audrey 分享了一张狗的照片"）。
-    * **过去时态**：用户讲述过去的经历（"Last week I did..."），视为“**历史事件**”，提取为 Activity。
+### 🚨 Critical Instruction: Scope of Extraction
+1.  **Focus ONLY on the 'Current Turn'**: You must extract information *only* if it appears or is implied in the "Current Turn" section.
+2.  **Use History for Context**: Read the "Dialogue History" *only* to resolve pronouns (e.g., know who "he" is) or understand the topic. **DO NOT** extract facts that appear *only* in the history.
+3.  **Atomic & Concise**: Extract short, atomic facts (Subject + Verb + Object). Avoid redundancy.
 
 ---
 
-### A. 语义流 (Semantic Stream - 静态/模型)
-*关注用户的固有属性与客观世界知识。*
+### A. Semantic Stream (Static / Abstract)
+*Intrinsic attributes and objective world knowledge.*
 
-**1. [semantic_profile] 个人画像 (User Model)**
-* **定义**：用户的**长期属性**、状态变更、性格、身份、习惯。
-* *关键补充*：包括用户的**持有物**（如“买了新房”、“有三只狗”）和**既定事实**。
-* *示例*："Melanie 搬了新家", "Alex 遵循素食饮食习惯"。
+**1. [semantic_profile] User Model**
+* **Definition**: Long-term attributes, personality, habits, identity, relationships.
+* *Example*: "Alex is a vegetarian.", "Bella owns a cat named Oreo."
+* *Constraint*: Do NOT record temporary states (e.g., "Alex is hungry" -> NO).
 
-**2. [semantic_knowledge] 世界知识 (World Model)**
-* **定义**：独立于用户的**客观事实**、地理/行业常识、他人/第三方实体的信息。
-* *示例*："Fox Hollow 步道风景优美", "波士顿的秋天很短"。
+**2. [semantic_knowledge] World Model**
+* **Definition**: Objective facts, common sense, definitions independent of the speakers.
+* *Example*: "Python is a programming language.", "The Alps are in Europe."
 
-### B. 情景流 (Episodic Stream - 动态/过程)
-*关注随时间发生的具体事件与思维过程。*
+### B. Episodic Stream (Dynamic / Concrete)
+*Specific events and internal thoughts tied to a timeline.*
 
-**3. [episodic_activity] 外在行为 (Activity)**
-* **定义**：客观发生的动作、事件、分享行为或交互结果。
-* **判定标准（满足任一即提取）**：
-    * 正在发生的动作（"I am cooking"）。
-    * **过去发生的经历**（"I went to the park yesterday"）-> *这是最容易漏掉的，请务必提取！*
-    * **视觉/媒体分享**（"[Image: ...]"）。
-    * **带原因的评价**（"It was awesome because..."）-> 提取为"某人因为...觉得很棒"。
+**3. [episodic_activity] Outer Activity**
+* **Definition**: Specific actions, events, past experiences, or behaviors happening NOW or in the PAST.
+* *Example*: "Charlie went to the gym yesterday.", "Diana is cooking pasta."
 
-**4. [episodic_thought] 内在思维 (Thought)**
-* **定义**：说话人**有实质内容**的内部状态。
-* *包含*：Intent (计划/意图), Reasoning (动机/理由), Deep Emotion (针对具体事件的强烈情感)。
-* *排除*：无具体对象的泛泛情绪（如单纯的 "I'm happy"）。
+**4. [episodic_thought] Inner Thought**
+* **Definition**: Specific intentions, opinions, motivations, or feelings about a specific event.
+* *Example*: "Ethan wants to lose weight.", "Fiona found the movie boring."
 
 ---
 
-### 🚫 真正的噪声 (True Noise Only)
-只有符合以下情况才视为噪声（Drop）：
-1. **纯粹的通信握手**："Hello", "Can you hear me?", "Bye".
-2. **无信息的附和**："Cool", "Wow", "Okay", "I agree"（若后面没有补充内容）。
-3. **重复的提问**：如果问题已经被转化为事实，则问题本身是噪声。
-
-### 输出格式 (JSON)
+### Output Format (JSON)
+Return an empty list `[]` if no NEW information is present in the current turn.
 ```json
 {
-    "semantic_profile": [
-        "Audrey 拥有了一个带大后院的新住所",
-        "Andrew 曾是一名金融分析师"
-    ],
-    "semantic_knowledge": [
-        "Fox Hollow 步道适合带狗徒步"
-    ],
-    "episodic_activity": [
-        "Audrey 分享了一张两只狗坐在草地上的照片 ([Image]转化)",
-        "Andrew 上周日去参加了攀岩课程 (过去事件)"
-    ],
-    "episodic_thought": [
-        "Andrew 想要尝试更多户外活动 (意图)"
-    ]
+    "semantic_profile": [],
+    "semantic_knowledge": ["Extract FACTS from the current turn"],
+    "episodic_activity": ["Extract EVENTS from the current turn"],
+    "episodic_thought": []
 }
 ```"""
 
     @staticmethod
-    def build_user_input(dialogue_text: str) -> str:
-        return f"### Dialogue Stream:\n{dialogue_text}"
+    def build_user_input(history_text: str, current_turn_text: str) -> str:
+        """
+        构造用户输入：清晰地物理隔离【上下文】和【提取目标】。
+        让模型一眼就能看出它该从哪段文字里提取信息。
+        """
+        return f"""### Dialogue History (Context ONLY - Do NOT Extract):
+{history_text}
+
+### Current Turn (TARGET - Extract Here):
+{current_turn_text}"""
 
 
 class VerifierPrompt:
