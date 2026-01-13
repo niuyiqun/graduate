@@ -13,146 +13,119 @@
           5. 执行强化学习微调并保存权重
 """
 
+# -*- coding: UTF-8 -*-
+"""
+@Project ：graduate
+@File    ：grpo.py
+@Author  ：niu
+@Desc    ：GRPO Training Script (Optimized for Atomic Extraction)
+          集成 4 种 Reward 函数，针对 380 条 Turn-level 数据进行微调。
+"""
+
 import os
 import sys
 import torch
-from dataclasses import dataclass, field
-from typing import Optional
-
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from peft import LoraConfig, get_peft_model, TaskType
+
+# 引入 trl 的 GRPO
 from trl import GRPOTrainer, GRPOConfig
-from datasets import load_dataset
 
 # --- 路径适配 ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
-if root_dir not in sys.path:
-    sys.path.append(root_dir)
+sys.path.append(root_dir)
 
-# --- 导入奖励函数 (确保 c1/reward.py 已更新为最新版) ---
-try:
-    from c1.reward import (
-        format_reward_func,
-        orthogonality_reward_func,
-        completeness_reward_func
-    )
-except ImportError:
-    print("Error: 无法导入 c1.reward，请检查文件是否存在。")
-    sys.exit(1)
+# 导入所有 4 个 Reward 函数
+from c1.reward import (
+    format_reward_func,
+    orthogonality_reward_func,
+    brevity_reward_func,  # [新增] 简洁性
+    deduplication_reward_func  # [新增] 去重
+)
 
-# --- 全局配置 ---
-# 建议使用指令遵循能力强的模型作为基座
-MODEL_NAME = "Qwen/Qwen2.5-7B-Instruct"
-# 数据集路径 (由 c1/data_factory.py 生成)
+# --- 1. 配置参数 ---
+# 确保这里指向刚刚生成的 380 条数据文件
 DATASET_PATH = os.path.join(current_dir, "dataset", "grpo_turn_level_data.jsonl")
-# 输出路径
-OUTPUT_DIR = os.path.join(root_dir, "checkpoints", "grpo_decoupler_v1")
+OUTPUT_DIR = os.path.join(current_dir, "output", "grpo_v1")
+
+# 模型路径 (请根据您的实际路径修改)
+MODEL_NAME_OR_PATH = "Qwen/Qwen2.5-7B-Instruct"  # 或您的本地路径
 
 
 def train_grpo():
-    print(f"\n{'=' * 20} GRPO Training Pipeline {'=' * 20}")
-    print(f"Base Model: {MODEL_NAME}")
-    print(f"Dataset   : {DATASET_PATH}")
-    print(f"Output Dir: {OUTPUT_DIR}\n")
+    print(f">>> Loading Dataset: {DATASET_PATH}")
+    if not os.path.exists(DATASET_PATH):
+        raise FileNotFoundError(f"❌ 数据文件未找到: {DATASET_PATH}")
 
-    # 1. 加载 Tokenizer (用于处理 Chat Template)
-    try:
-        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-        # Qwen/Llama 常见的 padding 处理
-        if tokenizer.pad_token is None:
-            tokenizer.pad_token = tokenizer.eos_token
-    except Exception as e:
-        print(f"[Error] Tokenizer 加载失败: {e}")
-        return
+    # --- 2. 加载模型与 Tokenizer ---
+    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME_OR_PATH, trust_remote_code=True)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
 
-    # 2. 加载并处理数据集
-    try:
-        dataset = load_dataset("json", data_files=DATASET_PATH, split="train")
-    except Exception as e:
-        print(f"[Error] 数据集加载失败，请先运行 c1/data_factory.py 生成数据: {e}")
-        return
+    # 加载底座模型 (建议使用 4bit/8bit 量化以节省显存，根据您的硬件决定)
+    # 如果显存够大 (24G+)，可以去掉 load_in_4bit
+    model = AutoModelForCausalLM.from_pretrained(
+        MODEL_NAME_OR_PATH,
+        torch_dtype=torch.float16,
+        device_map="auto",
+        trust_remote_code=True
+    )
 
-    # [关键步骤] 将 List[Dict] 格式的 Prompt 转换为纯文本 String
-    # GRPO 需要纯文本 Prompt 来进行后续生成的 concat
-    def format_chat_template(example):
-        # apply_chat_template 会自动拼接 System Prompt 和 User Input
-        # tokenize=False: 返回字符串
-        # add_generation_prompt=True: 添加 <|im_start|>assistant\n 引导模型开始生成
-        text = tokenizer.apply_chat_template(
-            example["prompt"],
-            tokenize=False,
-            add_generation_prompt=True
-        )
-        return {"prompt": text}
-
-    print(">>> Processing chat templates...")
-    dataset = dataset.map(format_chat_template)
-    # 打印一条样本检查格式
-    print(f"Sample Prompt:\n{dataset[0]['prompt'][:200]}...\n")
-
-    # 3. 配置 LoRA (参数高效微调)
+    # --- 3. 配置 LoRA ---
     peft_config = LoraConfig(
         task_type=TaskType.CAUSAL_LM,
         r=16,
         lora_alpha=32,
         lora_dropout=0.05,
-        target_modules=["q_proj", "v_proj", "k_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
+        target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
         bias="none",
     )
+    model = get_peft_model(model, peft_config)
+    model.print_trainable_parameters()
 
-    # 4. 配置 GRPO 参数
+    # --- 4. 配置 GRPO ---
     training_args = GRPOConfig(
         output_dir=OUTPUT_DIR,
-        learning_rate=1e-6,  # RL 学习率通常极小 (1e-6 ~ 5e-6)
-        per_device_train_batch_size=2,  # 根据显存调整 (24G显存建议 2-4)
-        gradient_accumulation_steps=4,  # 累计梯度模拟大 Batch
-        max_prompt_length=1024,
-        max_completion_length=512,  # 限制输出长度
-        num_generations=4,  # 核心参数: 每次采样 4 个结果进行对比 (Group Size)
-        beta=0.04,  # KL 散度惩罚系数 (防止偏离基座太远)
-        logging_steps=10,
-        save_steps=100,
-        max_steps=500,  # 训练步数 (演示用，实际建议 1000+)
-        fp16=True,  # 开启混合精度加速
-        report_to="none",  # 设为 "wandb" 可看曲线
-        logging_first_step=True,
+        learning_rate=1e-6,  # GRPO 通常需要较小的 LR
+        adam_beta1=0.9,
+        adam_beta2=0.99,
+        weight_decay=0.1,
+        warmup_ratio=0.1,
+        lr_scheduler_type="cosine",
+        logging_steps=1,  # 每一两步就打印日志，方便观察
+        bf16=True,  # 开启 bf16 加速
+        per_device_train_batch_size=4,  # 显存小的话改成 1 或 2
+        gradient_accumulation_steps=4,
+        num_generations=4,  # GRPO 核心参数：每条数据生成 4 个样本进行对比
+        max_prompt_length=1024,  # 滑动窗口数据很短，1024 足够了
+        max_completion_length=512,  # 输出的 JSON 也不会很长
+        num_train_epochs=3,  # 380条数据，跑 3 个 epoch 差不多
+        save_steps=50,
+        max_grad_norm=0.1,
+        use_vllm=False,  # 如果您没装 vLLM，设为 False
     )
 
-    # 5. 加载模型
-    # device_map="auto" 会自动分配显卡
-    print(">>> Loading Model...")
-    model = AutoModelForCausalLM.from_pretrained(
-        MODEL_NAME,
-        torch_dtype=torch.float16,
-        device_map="auto",
-        # load_in_4bit=True  # 如果显存 < 24G，建议取消注释开启 4-bit 量化
-    )
-
-    # 6. 初始化 GRPOTrainer
-    # 将我们定义好的 3 个奖励函数传入
+    # --- 5. 初始化 Trainer ---
     trainer = GRPOTrainer(
         model=model,
+        processing_class=tokenizer,
         reward_funcs=[
-            format_reward_func,  # 权重 1.0 (格式)
-            orthogonality_reward_func,  # 权重 1.0 (正交 - 核心)
-            completeness_reward_func  # 权重 1.0 (完备)
+            format_reward_func,  # 格式必须对
+            orthogonality_reward_func,  # 语义/情景必须分开
+            brevity_reward_func,  # 必须简短原子
+            deduplication_reward_func  # 内部不能重复
         ],
         args=training_args,
-        train_dataset=dataset,
-        processing_class=tokenizer,  # TRL 新版参数名 (旧版可能叫 tokenizer)
-        peft_config=peft_config,
+        train_dataset=DATASET_PATH,  # TRT 会自动处理 jsonl 加载
     )
 
-    # 7. 开始训练
-    print("\n>>> [GRPO] Start Training...")
+    print(">>> Starting GRPO Training...")
     trainer.train()
 
-    # 8. 保存最终模型
-    print(f"\n>>> [GRPO] Saving model to {OUTPUT_DIR}")
+    # 保存最终模型
     trainer.save_model(OUTPUT_DIR)
-    # 同时保存 tokenizer 方便推理
-    tokenizer.save_pretrained(OUTPUT_DIR)
+    print(f">>> Training Finished! Model saved to {OUTPUT_DIR}")
 
 
 if __name__ == "__main__":
