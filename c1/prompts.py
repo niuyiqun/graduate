@@ -132,47 +132,81 @@ class VerifierPrompt:
 
 class DeduplicatorPrompt:
     """
-    研究内容一(3)：基于逻辑蕴含的双层语义压缩
+    研究内容一(3)：基于逻辑博弈与预测偏差的双层压缩
     """
-    LAYER1_SYSTEM = """你是一个记忆系统的高维压缩器。请分析以下从对话中提取的信息原子，进行跨视图的优胜劣汰。"""
+
+    # === Layer 1: 批次内博弈 ===
+    LAYER1_SYSTEM = """你是一个基于“信息增益”的记忆博弈仲裁器。
+你的任务是分析一批提取出的信息原子，根据【四视图博弈矩阵】决定哪些需要保留，哪些是冗余的。
+
+### 核心判据：信息增益 (Information Gain)
+不要简单地让 Rule 覆盖 Event。必须判断 Event 是否提供了 Rule 之外的**新细节**。
+* **Redundant (冗余)**: Rule="喜辣", Event="吃辣"。-> Event 零增益，丢弃 Event。
+* **Informative (有益)**: Rule="喜辣", Event="今天尝试了特辣火锅并拉肚子"。-> Event 包含特例/后果，**保留两者**。
+"""
 
     @staticmethod
     def build_layer1_input(atoms_text: str) -> str:
-        return f"""### 待处理原子列表:
+        return f"""### 待仲裁原子 (The Players):
 {atoms_text}
 
-### 压缩原则:
-1.  **Attribute 覆盖 Event**: 如果 Attribute ("Caroline 致力于帮助跨性别者") 已经提取，则具体的佐证 Event ("Caroline 说她想帮助跨性别者") 视为冗余，应丢弃。保留具体的行动 Event ("Caroline 参加了研讨会")。
-2.  **Knowledge 覆盖 Entity**: 如果 Knowledge 包含实体定义，丢弃独立实体。
+### 仲裁指令:
+请返回一个 JSON，包含需要**保留 (Keep)** 的 ID 列表。
+对于没被选中的原子，视为冗余被淘汰。
 
-### 输出格式 (JSON):
-返回需要**保留**的 ID 列表。
+### 输出格式:
 ```json
 {{
     "keep_ids": [0, 2],
-    "reasoning": "..."
+    "reasoning": "ID 1 (喜欢咖啡) 被 ID 0 (每天喝咖啡的习惯) 逻辑包含且无新细节，故淘汰。"
 }}
 ```"""
 
-    LAYER2_SYSTEM = """你是一个记忆去重过滤器。判断【新输入】是否相对于【现有记忆库】是冗余的。"""
+    # === Layer 2A: Episodic Stream (预测偏差) ===
+    LAYER2_EPISODIC_SYSTEM = """你是一个“惊奇度检测器”。
+你的任务是判断【新事件 (Episodic)】相对于【现有知识 (Semantic)】是否具有“逻辑惊奇度 (Logic Surprise)”。
+
+### 判定标准:
+1. **Low Surprise (符合预测)** -> 冗余:
+   如果现有 Rule 能够解释或预测该 Event (e.g., Rule="每天喝咖啡", Event="今天喝了咖啡")。
+   这意味着该事件没有提供新信息量。
+2. **High Surprise (违背预测/新知)** -> 保留:
+   如果 Event 违背了 Rule (e.g., Rule="不吃辣", Event="点了麻辣火锅")，或者这是一个全新的独立事件。
+"""
 
     @staticmethod
-    def build_layer2_input(old_mems_text: str, new_atom_content: str) -> str:
-        return f"""### 现有记忆:
+    def build_episodic_predict_input(old_mems_text: str, new_atom_content: str) -> str:
+        return f"""### 现有上下文 (Context):
 {old_mems_text}
 
-### 新输入原子:
+### 新发生事件 (New Event):
 "{new_atom_content}"
 
-### 判决逻辑:
-1.  **Redundant (冗余)** -> drop: 新信息已被旧信息逻辑包含（注意检查**说话人**是否一致）。
-2.  **New (新知)** -> add: 新细节、新状态或不同说话人的相同属性。
+### 任务:
+判断新事件是否令系统感到“惊奇”？
+返回 json: {{"surprise_level": "low" | "high", "reasoning": "..."}}
+"""
 
-### 输出 (JSON):
-```json
-{{
-    "action": "drop", // or add
-    "reasoning": "..."
-}}
-```"""
-    # TODO：这里的物理流的提示词的样式得稍微修改下
+    # === Layer 2B: Semantic Stream (逻辑蕴含) ===
+    LAYER2_SEMANTIC_SYSTEM = """你是一个“知识整合器”。
+你的任务是判断【新规则】是否被【旧规则】逻辑蕴含 (Entailment)。
+
+### 判定标准:
+1. **Drop (被蕴含/重复)**:
+   旧规则是上位概念，完全覆盖新规则 (e.g., Old="擅长所有球类运动", New="会打篮球")。
+2. **Add (新知识/特例)**:
+   新规则包含旧规则未提及的属性，或修正了旧规则。
+"""
+
+    @staticmethod
+    def build_semantic_entailment_input(old_mems_text: str, new_atom_content: str) -> str:
+        return f"""### 现有知识库 (Knowledge Base):
+{old_mems_text}
+
+### 待入库新知 (New Knowledge):
+"{new_atom_content}"
+
+### 任务:
+决策动作: "add" 或 "drop"。
+返回 json: {{"action": "add" | "drop", "reasoning": "..."}}
+"""
