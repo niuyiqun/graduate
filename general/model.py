@@ -3,111 +3,42 @@
 @Project ：graduate 
 @File    ：model.py
 @Author  ：niu
-@Date    ：2025/12/5 09:02 
-@Desc    ：
+@Desc    ：模型接口封装 (支持 ZhipuAPI 与 本地 vLLM-Qwen)
 """
+import json
+import requests
+import yaml
+import re
+from typing import List, Dict, Any
 from abc import ABC, abstractmethod
 
-import yaml
-import json
-from abc import abstractmethod, ABC
-from typing import List, Dict, Any
 
-import requests
-import torch
-import transformers
-import yaml
-from transformers import AutoTokenizer
-from zhipuai import ZhipuAI
-
+# === 1. 基类定义 (BaseModel) ===
 class BaseModel(ABC):
     def __init__(self, config_path: str) -> None:
-        """
-        初始化基类，加载配置文件
-        :param config_path: 配置文件路径
-        """
         self.config = self.load_config(config_path)
 
-    def load_config(self, config_path: str = './config/llm_config.yaml') -> Dict[str, Dict]:
-        """
-        从配置文件加载 YAML 配置
-        :param config_path: 配置文件路径
-        :return: 配置字典
-        """
+    def load_config(self, config_path: str) -> Dict[str, Dict]:
         try:
-            with open(config_path, "r") as file:
+            with open(config_path, "r", encoding='utf-8') as file:
                 return yaml.safe_load(file)
-        except FileNotFoundError as e:
-            raise FileNotFoundError(f"Configuration file not found: {config_path}")
-        except yaml.YAMLError as e:
-            raise ValueError(f"Error parsing YAML file: {e}")
+        except Exception as e:
+            raise ValueError(f"Config load failed: {e}")
 
     @abstractmethod
-    def chat(self, prompt: str) -> str:
-        """
-        抽象方法，用于与模型交互。
-        子类需要实现此方法。
-        """
+    def chat(self, messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """与模型交互，返回字典结果"""
         pass
 
     @abstractmethod
     def load_model(self) -> None:
-        """
-        抽象方法，用于加载模型。
-        子类需要实现此方法。
-        """
+        """加载模型或初始化客户端"""
         pass
 
 
-class LlamaChat(BaseModel):
-    def __init__(self, config_path: str = './config/llm_config.yaml') -> None:
-        super().__init__(config_path)
-        llama_config = self.config.get("llama2", {})
-        self.api_url = llama_config.get("api_url", "http://localhost:8000/generate")
-        if not self.api_url:
-            raise ValueError("API URL is not provided in the configuration.")
-        self.load_model()
-
-    def chat(self, prompt: List[Dict[str, Any]]) -> Dict[str, str]:
-        # Define the payload for the API request
-        payload = {
-            "prompt": json.dumps(prompt),
-            "temperature": 0.7,
-            "top_k": 10,
-            "max_tokens": 150,
-            "stop": None  # Add stop tokens if necessary
-        }
-        try:
-            # Send POST request to the API
-            response = requests.post(self.api_url, json=payload)
-            response.raise_for_status()  # Raise HTTPError for bad responses (4xx and 5xx)
-            result = response.json()
-
-            # Return the generated text
-            return {
-                "prompt": prompt,
-                "response": result.get("text", "No response generated")
-            }
-
-        except requests.exceptions.RequestException as e:
-            # Handle errors in the request
-            raise RuntimeError(f"Error during API request: {e}")
-
-
-    def load_model(self) -> None:
-        """
-                This function is a placeholder since the model is no longer loaded locally.
-        """
-        print('================ Model API ready ================')
-        print("LlamaChat initialized with API URL:", self.api_url)
-
-
+# === 2. ZhipuChat (云端 API) ===
 class ZhipuChat(BaseModel):
     def __init__(self, config_path: str = './config/llm_config.yaml') -> None:
-        """
-        初始化 ZhipuChat
-        :param config_path: 配置文件路径
-        """
         super().__init__(config_path)
         zhipu_config = self.config.get("zhipu", {})
         self.api_key = zhipu_config.get("api_key", "")
@@ -116,71 +47,156 @@ class ZhipuChat(BaseModel):
         self.load_model()
 
     def load_model(self) -> None:
-        """
-        加载 ZhipuAI 客户端
-        """
-        print('================ Loading ZhipuAI client ================')
-        self.client = ZhipuAI(api_key=self.api_key)
-        print('================ ZhipuAI client loaded ================')
+        """初始化智谱客户端"""
+        try:
+            from zhipuai import ZhipuAI
+            self.client = ZhipuAI(api_key=self.api_key)
+            print("=== ZhipuAI Client Initialized ===")
+        except ImportError:
+            print("[Warn] 'zhipuai' package not found. Cloud API will not work.")
 
-    def chat(self, messages: List[Dict[str, Any]]) -> Dict[str, str]:
-        """
-        与 ZhipuAI 模型交互 (增强版：正则提取，专治各种格式不服)
-        """
-        if self.client is None:
-            raise RuntimeError("ZhipuAI client is not loaded.")
+    def chat(self, messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+        if not self.client:
+            return {"error": "Client not initialized"}
 
         try:
-            # 1. 调用 API
             response = self.client.chat.completions.create(
                 model=self.model,
                 messages=messages
             )
-
-            # 获取原始文本
             content = response.choices[0].message.content
-
-            # 2. 【核心修复】使用正则表达式提取 JSON
-            import re
-
-            # 解释：
-            # ```(?:json)?  -> 匹配 ``` 开头，json 可有可无
-            # \s* -> 忽略中间的换行符或空格
-            # (\{.*?\})     -> 【核心捕获】抓取 { ... } 中间的所有内容
-            # \s* -> 忽略后面的空白
-            # ```           -> 匹配结尾的 ```
-            # re.DOTALL     -> 让 . 也能匹配换行符，关键！
-            json_match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
-
-            if json_match:
-                # 方案 A：如果找到了 Markdown 框，直接取框里的
-                json_str = json_match.group(1)
-            else:
-                # 方案 B：如果没框，尝试暴力寻找最外层的 {}
-                # 这能处理开头有一堆废话的情况，比如 "好的，这是您的JSON：\n{...}"
-                start_idx = content.find("{")
-                end_idx = content.rfind("}")
-                if start_idx != -1 and end_idx != -1:
-                    json_str = content[start_idx: end_idx + 1]
-                else:
-                    # 方案 C：实在没招了，硬解析原始文本
-                    json_str = content
-
-            # 3. 解析 JSON
-            parsed_answer = json.loads(json_str)
-            return parsed_answer
-
-        except json.JSONDecodeError as json_error:
-            print(f"JSON parsing error: {json_error}")
-            print(f"Failed JSON content: {content}")  # 打印错误现场
-            return {"error": "JSON parsing error", "details": str(json_error)}
-
+            return self._extract_json(content)
         except Exception as e:
-            print(f"Error during chat: {e}")
-            return {"error": "Other error", "details": str(e)}
+            print(f"[Zhipu] Error: {e}")
+            return {}
+
+    def _extract_json(self, content: str) -> Dict:
+        """通用 JSON 提取逻辑"""
+        try:
+            # 1. 尝试匹配 Markdown 代码块
+            match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
+            if match:
+                return json.loads(match.group(1))
+
+            # 2. 尝试匹配最外层 {}
+            start = content.find("{")
+            end = content.rfind("}")
+            if start != -1 and end != -1:
+                return json.loads(content[start:end + 1])
+
+            # 3. 裸奔尝试
+            return json.loads(content)
+        except Exception as e:
+            # 如果不是 JSON，尝试封装返回
+            return {"content": content, "raw": content}
 
 
+# === 3. QwenChat (本地 vLLM 核心) ===
+class QwenChat(BaseModel):
+    def __init__(self, config_path: str = './config/llm_config.yaml') -> None:
+        super().__init__(config_path)
+        # 读取 qwen 配置
+        qwen_conf = self.config.get("qwen", {})
+
+        # 自动补全 URL
+        base_url = qwen_conf.get("base_url", "http://localhost:8001/v1")
+        if not base_url.endswith('/chat/completions'):
+            self.api_url = f"{base_url.rstrip('/')}/chat/completions"
+        else:
+            self.api_url = base_url
+
+        self.model_name = qwen_conf.get("model", "qwen")
+        self.api_key = qwen_conf.get("api_key", "EMPTY")
+
+        # 必须调用这个，否则报错！
+        self.load_model()
+
+    def load_model(self) -> None:
+        """实现抽象方法：打印初始化信息"""
+        print('================ QwenChat (Local vLLM) initialized ================')
+        print(f"Target URL: {self.api_url}")
+        print(f"Model Name: {self.model_name}")
+
+    def chat(self, messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        发送请求并强制解析 JSON (带兜底)
+        """
+        payload = {
+            "model": self.model_name,
+            "messages": messages,
+            "temperature": 0.7,
+            "max_tokens": 2048
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}"
+        }
+
+        try:
+            # 1. 请求
+            resp = requests.post(self.api_url, json=payload, headers=headers, timeout=600)
+            resp.raise_for_status()
+
+            # 2. 获取文本
+            data = resp.json()
+            content = data['choices'][0]['message']['content']
+
+            # 3. 提取 JSON (复用正则逻辑)
+            match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
+            if match:
+                json_str = match.group(1)
+            else:
+                # 其次找 {}
+                start = content.find("{")
+                end = content.rfind("}")
+                if start != -1 and end != -1:
+                    json_str = content[start:end + 1]
+                else:
+                    # 兜底逻辑：如果找不到 JSON，不要报错，封装成字典返回
+                    print(f"[Qwen] Warn: No JSON found. Fallback to raw text.")
+                    return {"content": content, "raw_response": content}
+
+            return json.loads(json_str)
+
+        except json.JSONDecodeError as e:
+            print(f"[Qwen] JSON 解析失败: {e}")
+            return {"error": "JSON Decode Failed", "content": content}
+        except Exception as e:
+            print(f"[Qwen] API 请求异常: {e}")
+            return {"error": "API Error", "details": str(e)}
+
+
+# === 4. 测试入口 ===
 if __name__ == '__main__':
+    # 路径适配
     config_path = "../config/llm_config.yaml"
-    agent = ZhipuChat(config_path)
-    print('generated content:', agent.chat('messages'))
+
+    try:
+        # 1. 初始化
+        agent = QwenChat(config_path)
+
+        # 2. 构造强制 JSON 的 Prompt
+        test_messages = [
+            {
+                "role": "system",
+                "content": "你是一个助手。请务必以 JSON 格式回答，格式为：{\"answer\": \"你的回答内容\"}"
+            },
+            {
+                "role": "user",
+                "content": "你好，请问现在几点了？（请随意编一个时间）"
+            }
+        ]
+
+        print("\n>>> 发送测试请求 (Expecting JSON)...")
+        result = agent.chat(test_messages)
+
+        print("\n>>> 模型返回结果:")
+        print(json.dumps(result, indent=2, ensure_ascii=False))
+
+        if "answer" in result:
+            print("\n✅ JSON 解析成功！测试通过。")
+        elif "content" in result:
+            print("\n⚠️ 返回了纯文本（兜底生效），测试通过。")
+
+    except Exception as e:
+        print(f"\n❌ 测试运行出错: {e}")
