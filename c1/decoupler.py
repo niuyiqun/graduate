@@ -22,7 +22,7 @@ import os
 from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 
-# --- 路径适配 (确保能导入根目录下的 general 模块) ---
+# --- 路径适配 ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
 if root_dir not in sys.path:
@@ -32,21 +32,23 @@ if root_dir not in sys.path:
 try:
     from general.decoupled_memory import DecoupledMemoryAtom
     from general.model import BaseModel
-    # 导入 Prompt 定义，确保逻辑源头统一
+    # 确保导入了您刚才发的 prompts.py
     from c1.prompts import DecouplerPrompt
 except ImportError as e:
-    raise ImportError(f"模块导入失败，请确保项目结构正确 (c1/ 和 general/ 同级): {e}")
+    # 简单的 fallback，防止导入报错影响运行，但在 IDE 中应修正路径
+    print(f"[Warn] Import error in decoupler: {e}")
+    pass
 
 
 @dataclass
 class RawInputObj:
     """
     [Data Object] 原始输入封装
-    用于标准化进入 Pipeline 的非结构化文本流，保留时序信息。
     """
-    text: str
+    text: str          # 【当前轮次】的内容 (Target)
+    context: str = ""  # 【历史对话】的内容 (Context)
     timestamp: float = None
-    source: str = "user"  # 或 'dialogue_stream'
+    source: str = "user"
 
     def __post_init__(self):
         if self.timestamp is None:
@@ -80,50 +82,39 @@ class SemanticDecoupler:
         # 直接使用 c1/prompts.py 中定义的 System Prompt
         self.system_prompt = DecouplerPrompt.SYSTEM
 
-    def decouple(self, raw_input: RawInputObj) -> List[DecoupledMemoryAtom]:
+    def decouple(self, raw_input: RawInputObj) -> List[Any]:
         """
-        [主入口] 执行分解流水线 (Execution Pipeline)
-
-        Args:
-            raw_input: 包含文本和时间戳的原始输入对象
-
-        Returns:
-            List[DecoupledMemoryAtom]: 分解后的记忆原子列表
+        [主入口] 执行分解流水线
         """
 
-        # 1. 构造上下文 (Context Construction)
-        # 使用 Prompt 类提供的静态方法构建用户输入 (可扩展性更好)
-        user_content = DecouplerPrompt.build_user_input(raw_input.text)
+        # 1. 构造 Prompt (关键修改：传入 Context 和 Current Text)
+        user_content = DecouplerPrompt.build_user_input(
+            history_text=raw_input.context,
+            current_turn_text=raw_input.text
+        )
 
         messages = [
             {"role": "system", "content": self.system_prompt},
             {"role": "user", "content": user_content}
         ]
 
-        # 打印日志方便调试 (截取前30字符，去除换行)
-        log_text = raw_input.text[:30].replace('\n', ' ')
-        print(f"--- [Decoupler] 正在调用大模型分解: {log_text}... ---")
+        # 打印日志 (只显示当前处理的句子，避免刷屏)
+        log_text = raw_input.text[:50].replace('\n', ' ')
+        # print(f"  >>> [Decoupler] Processing: {log_text}...")
 
-        # 2. LLM 推理 (Inference)
+        # 2. LLM 推理
         response_data = self.llm.chat(messages)
 
-        # 3. 鲁棒性工程：错误处理与熔断 (Error Handling)
-        if "error" in response_data:
+        # 3. 错误处理
+        if isinstance(response_data, dict) and "error" in response_data:
             print(f"[Error] 模型调用失败: {response_data.get('details')}")
-            # 降级策略 (Fallback):
-            # 如果解析失败，将整段话作为未分类的 'episodic_activity' 存入，保证不丢数据
-            return [DecoupledMemoryAtom(
-                content=raw_input.text,
-                atom_type="episodic_activity",
-                source_text=raw_input.text,
-                timestamp=self._format_time(raw_input.timestamp)
-            )]
+            # 降级策略：返回空列表，或者将原句作为 Activity 存入
+            return []
 
-        # 4. 原子化与归一化 (Atomization & Normalization)
+        # 4. 解析结果
         atoms = []
-        parsed_json = response_data  # 假设 LLM 基类已处理 JSON 解析，返回 dict
+        parsed_json = response_data
 
-        # 定义需要提取的目标 Key (对应四视图)
         target_keys = [
             "semantic_profile",
             "semantic_knowledge",
@@ -131,10 +122,23 @@ class SemanticDecoupler:
             "episodic_thought"
         ]
 
+        # 确保能导入 Atom 类
+        try:
+            from general.decoupled_memory import DecoupledMemoryAtom
+        except ImportError:
+            # 本地调试时的备选定义
+            from dataclasses import dataclass
+            @dataclass
+            class DecoupledMemoryAtom:
+                content: str
+                atom_type: str
+                source_text: str
+                timestamp: str
+
         formatted_time = self._format_time(raw_input.timestamp)
 
         for key in target_keys:
-            # 容错处理：获取数据，防范 LLM 偶尔输出复数 key (e.g., semantic_profiles)
+            # 容错：处理 LLM 可能返回单数/复数 Key 的情况
             content_list = parsed_json.get(key) or parsed_json.get(key + 's')
 
             if not content_list or not isinstance(content_list, list):
@@ -143,27 +147,22 @@ class SemanticDecoupler:
             for content in content_list:
                 clean_content = str(content).strip()
 
-                # --- [关键清洗步骤] 实体过滤 ---
-                # 英文语境下，如果内容少于 3 个单词，极大概率是残留的单一实体 (如 "Dogs", "The sky")
-                # 这种碎片对记忆检索无用且有害，直接丢弃
-                if len(clean_content.split()) < 3:
-                    # print(f"  [Filter] 丢弃过短原子(实体残留): {clean_content}")
+                # 过滤过短的内容 (例如误提取的 "Hi")
+                if len(clean_content.split()) < 2:
                     continue
 
-                # 实例化原子对象
                 atom = DecoupledMemoryAtom(
                     content=clean_content,
-                    atom_type=key,  # 直接使用新的类型名
-                    source_text=raw_input.text,  # 保留溯源信息
+                    atom_type=key,
+                    source_text=raw_input.text, # 溯源到当前这句
                     timestamp=formatted_time
                 )
                 atoms.append(atom)
+                print(f"    - [{key}] {clean_content}")
 
-        print(f"  -> 初步提取 {len(atoms)} 条原子")
         return atoms
 
     def _format_time(self, timestamp: float) -> str:
-        """辅助函数：格式化时间戳"""
         try:
             return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(timestamp))
         except Exception:

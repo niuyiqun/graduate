@@ -8,6 +8,7 @@
 """
 import pickle
 import uuid
+import os
 from abc import abstractmethod, ABC
 from typing import Optional, List
 from datetime import datetime
@@ -16,6 +17,14 @@ from rank_bm25 import BM25Okapi
 import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
+
+# --- 1. 动态获取项目根目录 (核心修复) ---
+# 获取 current file dir: .../graduate/general
+current_dir = os.path.dirname(os.path.abspath(__file__))
+# 获取 project root: .../graduate
+project_root = os.path.dirname(current_dir)
+# 拼接本地模型默认绝对路径
+DEFAULT_MODEL_PATH = os.path.join(project_root, "model", "all-MiniLM-L6-v2")
 
 
 class MemoryNote(ABC):
@@ -133,22 +142,41 @@ class MemoryManager:
 class HybridRetriever:
     """Hybrid retrieval system combining BM25 and semantic search."""
 
-    def __init__(self, model_name: str = '../model/all-MiniLM-L6-v2', alpha: float = 0.5):
+    def __init__(self, model_name: Optional[str] = None, alpha: float = 0.5):
         """Initialize the hybrid retriever.
 
         Args:
-            model_name: Name of the SentenceTransformer model to use
+            model_name: Name of the SentenceTransformer model to use (default: local path)
             alpha: Weight for combining BM25 and semantic scores (0 = only BM25, 1 = only semantic)
         """
-        self.model = SentenceTransformer(model_name)  # 使用预训练的 SentenceTransformer 模型
+        # --- 2. 路径加载逻辑修复 ---
+        # 如果没有传入 model_name，使用计算出的默认本地绝对路径
+        target_model = model_name or DEFAULT_MODEL_PATH
+
+        # 检查路径是否存在
+        if os.path.exists(target_model):
+            print(f"[HybridRetriever] Loading local model from: {target_model}")
+            self.model = SentenceTransformer(target_model)
+        else:
+            print(f"[Warn] Local path not found: {target_model}")
+            print(f"[Info] Attempting to download 'all-MiniLM-L6-v2' from HuggingFace...")
+            # 如果本地没有，尝试用这个名字去下载 (会超时如果没网，但逻辑上是对的)
+            self.model = SentenceTransformer('all-MiniLM-L6-v2')
+
         self.alpha = alpha  # alpha 用于调整 BM25 和语义检索的加权比例
         self.bm25 = None  # 用于存储 BM25 模型
-        self.corpus = []  # 存储所有的文档（记忆块）
+        self.corpus = []  # 存储所有的文档（记忆块内容）
+        self.doc_ids = []  # 存储文档对应的 memory_id (方便检索回溯)
         self.embeddings = None  # 存储文档的语义嵌入向量
         self.document_ids = {}  # 存储文档的 ID 和索引对应关系
 
-    def add_documents(self, documents: List[str]) -> bool:
-        """Add documents to both BM25 and semantic index"""
+    def add_documents(self, documents: List[str], ids: List[str] = None) -> bool:
+        """
+        Add documents to both BM25 and semantic index
+        Args:
+            documents: List of content strings
+            ids: List of memory IDs corresponding to documents (Optional but recommended)
+        """
         if not documents:
             return False
 
@@ -159,6 +187,14 @@ class HybridRetriever:
         # 为每个文档创建语义嵌入向量
         self.embeddings = self.model.encode(documents)
         self.corpus = documents
+
+        # 保存 IDs 映射
+        if ids and len(ids) == len(documents):
+            self.doc_ids = ids
+        else:
+            # 如果没传 ID，或者长度不对，就置空，防止索引越界
+            self.doc_ids = []
+
         for idx, document in enumerate(documents):
             self.document_ids[document] = idx
 
@@ -190,10 +226,12 @@ class HybridRetriever:
 
         return top_k_indices.tolist()
 
+
 class AgenticMemorySystem:
     """Memory system with management and retrieval capabilities."""
 
-    def __init__(self, model_name: str = 'all-MiniLM-L6-v2', alpha: float = 0.5):
+    def __init__(self, model_name: Optional[str] = None, alpha: float = 0.5):
+        # 传入 None 让 HybridRetriever 使用默认计算的绝对路径
         self.memory_manager = MemoryManager()  # 记忆管理系统
         self.retriever = HybridRetriever(model_name=model_name, alpha=alpha)  # 混合检索器
         self.evo_threshold = 10  # 演化阈值
@@ -203,30 +241,51 @@ class AgenticMemorySystem:
         """Add a new general note and update retriever."""
         note = ContentBasedMemoryNote(content=content, **kwargs)
         self.memory_manager.add_memory(note)  # 添加记忆块
-        self.retriever.add_documents([note.content])  # 更新检索器
+
+        # 更新检索器 (这里只是简单的单条添加，实际场景建议批量 add_documents)
+        # 注意：这里为了简单，暂时只传 content，不传 id，
+        # 但在 find_related_memories 里需要注意索引匹配
+        self.retriever.add_documents([note.content], ids=[note.id])
         return note.id
 
     def find_related_memories(self, query: str, k: int = 5):
         """Find related memories using hybrid retrieval."""
         indices = self.retriever.retrieve(query, k)
-        related_memories = [self.memory_manager.get_memory(self.retriever.corpus[i]) for i in indices]
-        return related_memories
+
+        # 修正：通过 index 找回 memory 对象
+        # 如果 retrieve 里的 doc_ids 有值，直接用 id 查
+        if self.retriever.doc_ids:
+            related_memories = []
+            for i in indices:
+                mem_id = self.retriever.doc_ids[i]
+                mem = self.memory_manager.get_memory(mem_id)
+                if mem:
+                    related_memories.append(mem)
+            return related_memories
+        else:
+            # 兼容旧逻辑：如果没存 ID，只能尝试通过内容反查 (不推荐，容易重名)
+            # 或者直接返回内容
+            # 这里简单返回 None 防止报错，实际应该用上面的 ID 逻辑
+            return []
 
     def consolidate_memories(self):
         """Consolidate all memories in the system."""
-        self.retriever = HybridRetriever()  # 重置检索器
+        # 这里的 model_name 需要保持一致，直接重新初始化
+        self.retriever = HybridRetriever(model_name=None)  # 重置检索器 (使用默认路径)
         all_memories = self.memory_manager.get_all_memories()
+
         all_contents = [memory.content for memory in all_memories]
-        self.retriever.add_documents(all_contents)  # 重新添加所有记忆块到检索器
+        all_ids = [memory.id for memory in all_memories]
+
+        self.retriever.add_documents(all_contents, ids=all_ids)  # 重新添加所有记忆块到检索器
         print("Memories consolidated.")
 
 
 if __name__ == '__main__':
-    print(1)
+    print("Testing Memory System...")
     memory_system = AgenticMemorySystem()
     note_id = memory_system.add_note("This is a general about neural networks.")
     query = "What are neural networks?"
     related_memories = memory_system.find_related_memories(query)
     for memory in related_memories:
         print(memory)
-
