@@ -1,9 +1,9 @@
 # -*- coding: UTF-8 -*-
 """
-@Project ：graduate 
+@Project ：graduate
 @File    ：base_memory.py
 @Author  ：niu
-@Date    ：2025/12/4 15:43 
+@Date    ：2025/12/4 15:43
 @Desc    ：
 """
 import pickle
@@ -18,7 +18,7 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
 
-# --- 1. 动态获取项目根目录 (核心修复) ---
+# --- 1. 动态获取项目根目录 ---
 # 获取 current file dir: .../graduate/general
 current_dir = os.path.dirname(os.path.abspath(__file__))
 # 获取 project root: .../graduate
@@ -35,50 +35,41 @@ class MemoryNote(ABC):
                  id: Optional[str] = None,  # 块标识
                  valid: Optional[bool] = True,  # 块是否有效
                  importance_score: Optional[float] = None,  # 优势值
-                 retrieval_count: Optional[int] = 0,  # 该记忆块被检索的次数，反映其被访问的频率
+                 retrieval_count: Optional[int] = 0,  # 该记忆块被检索的次数
                  timestamp: Optional[str] = None,  # 记忆块的时间戳
                  last_accessed: Optional[str] = None,  # 记录最后一次访问该记忆块的时间
                  ):
-        # 初始化记忆块的字段
-        self.id = id or str(uuid.uuid4())  # 如果没有提供 ID，则自动生成一个 UUID
+        self.id = id or str(uuid.uuid4())
         self.content = content
         self.valid = valid
-        self.importance_score = importance_score or 1.0  # 如果没有提供，默认重要性为 1.0
-        self.retrieval_count = retrieval_count  # 初始化检索次数
-        self.timestamp = timestamp or datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # 默认时间戳为当前时间
-        self.last_accessed = last_accessed or self.timestamp  # 如果没有提供最后访问时间，默认为时间戳
+        self.importance_score = importance_score or 1.0
+        self.retrieval_count = retrieval_count
+        self.timestamp = timestamp or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        self.last_accessed = last_accessed or self.timestamp
 
     def update_validity(self, valid: bool):
-        """更新记忆块的有效性"""
         self.valid = valid
 
     def update_last_accessed(self):
-        """更新记忆块的最后访问时间为当前时间"""
         self.last_accessed = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
     def increment_retrieval_count(self):
-        """增加记忆块的检索次数"""
         self.retrieval_count += 1
 
     def set_importance_score(self, importance_score: float):
-        """设置记忆块的优势值"""
         self.importance_score = importance_score
 
     def get_summary(self) -> str:
-        """获取记忆块的简要信息"""
         return f"ID: {self.id}, Valid: {self.valid}, Importance: {self.importance_score}, Retrieval Count: {self.retrieval_count}, Last Accessed: {self.last_accessed}"
 
     def __str__(self) -> str:
-        """返回记忆块的详细信息"""
         return f"MemoryNote({self.id}): {self.content}\nValid: {self.valid}\nImportance Score: {self.importance_score}\nRetrieval Count: {self.retrieval_count}\nTimestamp: {self.timestamp}\nLast Accessed: {self.last_accessed}"
 
     def __repr__(self) -> str:
-        """返回记忆块的简洁表示，用于调试"""
         return f"MemoryNote({self.id}, Importance: {self.importance_score})"
 
     @abstractmethod
     def extra_info(self) -> str:
-        """子类可扩展的额外信息"""
         pass
 
 
@@ -89,7 +80,6 @@ class ContentBasedMemoryNote(MemoryNote):
         super().__init__(content, *args, **kwargs)
 
     def extra_info(self) -> str:
-        """返回额外的内容信息"""
         return f"Content-based additional info: {self.content[:20]}..."
 
 
@@ -101,27 +91,22 @@ class MemoryManager:
         self.memory_store = {}
 
     def add_memory(self, memory: MemoryNote) -> str:
-        """Add a new general to the manager."""
         self.memory_store[memory.id] = memory
-        return memory.id  # 返回新记忆块的 ID
+        return memory.id
 
     def get_memory(self, memory_id: str) -> Optional[MemoryNote]:
-        """Retrieve a general by its ID."""
         return self.memory_store.get(memory_id)
 
     def delete_memory(self, memory_id: str) -> bool:
-        """Delete a general by its ID."""
         if memory_id in self.memory_store:
             del self.memory_store[memory_id]
             return True
         return False
 
     def get_all_memories(self) -> List[MemoryNote]:
-        """Retrieve all stored memories."""
         return list(self.memory_store.values())
 
     def update_memory(self, memory_id: str, new_content: Optional[str] = None) -> bool:
-        """Update an existing general's content or metadata."""
         memory = self.memory_store.get(memory_id)
         if memory:
             if new_content:
@@ -130,69 +115,55 @@ class MemoryManager:
         return False
 
     def get_summary(self) -> str:
-        """Get a summary of all stored memories."""
         summary = "\n".join([f"{memory.id}: {memory.get_summary()}" for memory in self.memory_store.values()])
         return summary
 
     def consolidate_memories(self):
-        """Consolidate memories: update retriever with new documents"""
         print("Consolidating memories...")
+
+    # ==========================================
+    # ✅ 新增：清空记忆库的方法
+    # ==========================================
+    def clear(self):
+        """清空所有存储的记忆"""
+        self.memory_store = {}
+        # print("[MemoryManager] All memories cleared.")
 
 
 class HybridRetriever:
     """Hybrid retrieval system combining BM25 and semantic search."""
 
     def __init__(self, model_name: Optional[str] = None, alpha: float = 0.5):
-        """Initialize the hybrid retriever.
-
-        Args:
-            model_name: Name of the SentenceTransformer model to use (default: local path)
-            alpha: Weight for combining BM25 and semantic scores (0 = only BM25, 1 = only semantic)
-        """
-        # --- 2. 路径加载逻辑修复 ---
-        # 如果没有传入 model_name，使用计算出的默认本地绝对路径
         target_model = model_name or DEFAULT_MODEL_PATH
 
-        # 检查路径是否存在
         if os.path.exists(target_model):
             print(f"[HybridRetriever] Loading local model from: {target_model}")
             self.model = SentenceTransformer(target_model)
         else:
             print(f"[Warn] Local path not found: {target_model}")
             print(f"[Info] Attempting to download 'all-MiniLM-L6-v2' from HuggingFace...")
-            # 如果本地没有，尝试用这个名字去下载 (会超时如果没网，但逻辑上是对的)
             self.model = SentenceTransformer('all-MiniLM-L6-v2')
 
-        self.alpha = alpha  # alpha 用于调整 BM25 和语义检索的加权比例
-        self.bm25 = None  # 用于存储 BM25 模型
-        self.corpus = []  # 存储所有的文档（记忆块内容）
-        self.doc_ids = []  # 存储文档对应的 memory_id (方便检索回溯)
-        self.embeddings = None  # 存储文档的语义嵌入向量
-        self.document_ids = {}  # 存储文档的 ID 和索引对应关系
+        self.alpha = alpha
+        self.bm25 = None
+        self.corpus = []
+        self.doc_ids = []
+        self.embeddings = None
+        self.document_ids = {}
 
     def add_documents(self, documents: List[str], ids: List[str] = None) -> bool:
-        """
-        Add documents to both BM25 and semantic index
-        Args:
-            documents: List of content strings
-            ids: List of memory IDs corresponding to documents (Optional but recommended)
-        """
         if not documents:
             return False
 
-        # 对文档进行 BM25 分词处理
         tokenized_docs = [doc.lower().split() for doc in documents]
-        self.bm25 = BM25Okapi(tokenized_docs)  # 初始化 BM25
+        self.bm25 = BM25Okapi(tokenized_docs)
 
-        # 为每个文档创建语义嵌入向量
         self.embeddings = self.model.encode(documents)
         self.corpus = documents
 
-        # 保存 IDs 映射
         if ids and len(ids) == len(documents):
             self.doc_ids = ids
         else:
-            # 如果没传 ID，或者长度不对，就置空，防止索引越界
             self.doc_ids = []
 
         for idx, document in enumerate(documents):
@@ -201,59 +172,71 @@ class HybridRetriever:
         return True
 
     def retrieve(self, query: str, k: int = 5) -> List[int]:
-        """Retrieve documents using hybrid scoring"""
         if not self.corpus:
             return []
 
-        # 获取 BM25 分数
         tokenized_query = query.lower().split()
-        bm25_scores = np.array(self.bm25.get_scores(tokenized_query))
+        if self.bm25:
+            bm25_scores = np.array(self.bm25.get_scores(tokenized_query))
+        else:
+            # 防止未添加文档时 bm25 为 None 报错
+            bm25_scores = np.zeros(len(self.corpus))
 
-        # 标准化 BM25 分数
         if len(bm25_scores) > 0:
-            bm25_scores = (bm25_scores - bm25_scores.min()) / (bm25_scores.max() - bm25_scores.min() + 1e-6)
+            if bm25_scores.max() - bm25_scores.min() > 0:
+                bm25_scores = (bm25_scores - bm25_scores.min()) / (bm25_scores.max() - bm25_scores.min() + 1e-6)
+            else:
+                bm25_scores = np.zeros_like(bm25_scores)  # 避免除零
 
-        # 获取语义相似度分数
         query_embedding = self.model.encode([query])[0]
-        semantic_scores = cosine_similarity([query_embedding], self.embeddings)[0]
+        if self.embeddings is not None and len(self.embeddings) > 0:
+            semantic_scores = cosine_similarity([query_embedding], self.embeddings)[0]
+        else:
+            semantic_scores = np.zeros(len(self.corpus))
 
-        # 结合 BM25 和语义相似度分数
         hybrid_scores = self.alpha * bm25_scores + (1 - self.alpha) * semantic_scores
 
-        # 获取排名前 k 的索引
         k = min(k, len(self.corpus))
         top_k_indices = np.argsort(hybrid_scores)[-k:][::-1]
 
         return top_k_indices.tolist()
+
+    # ==========================================
+    # ✅ 新增：清空索引的方法
+    # ==========================================
+    def clear(self):
+        """清空所有索引数据"""
+        self.bm25 = None
+        self.corpus = []
+        self.doc_ids = []
+        self.embeddings = None
+        self.document_ids = {}
+        # print("[HybridRetriever] Index cleared.")
 
 
 class AgenticMemorySystem:
     """Memory system with management and retrieval capabilities."""
 
     def __init__(self, model_name: Optional[str] = None, alpha: float = 0.5):
-        # 传入 None 让 HybridRetriever 使用默认计算的绝对路径
-        self.memory_manager = MemoryManager()  # 记忆管理系统
-        self.retriever = HybridRetriever(model_name=model_name, alpha=alpha)  # 混合检索器
-        self.evo_threshold = 10  # 演化阈值
-        self.evo_count = 0  # 演化计数
+        self.memory_manager = MemoryManager()
+        self.retriever = HybridRetriever(model_name=model_name, alpha=alpha)
+        self.evo_threshold = 10
+        self.evo_count = 0
 
     def add_note(self, content: str, **kwargs):
         """Add a new general note and update retriever."""
         note = ContentBasedMemoryNote(content=content, **kwargs)
-        self.memory_manager.add_memory(note)  # 添加记忆块
+        self.memory_manager.add_memory(note)
 
-        # 更新检索器 (这里只是简单的单条添加，实际场景建议批量 add_documents)
-        # 注意：这里为了简单，暂时只传 content，不传 id，
-        # 但在 find_related_memories 里需要注意索引匹配
-        self.retriever.add_documents([note.content], ids=[note.id])
+        # 增量更新索引（简易版：重新构建全量索引以保证一致性）
+        # 如果追求性能，这里应该只 update 增量，但在内存版里 full update 其实很快
+        self.consolidate_memories()
+
         return note.id
 
     def find_related_memories(self, query: str, k: int = 5):
-        """Find related memories using hybrid retrieval."""
         indices = self.retriever.retrieve(query, k)
 
-        # 修正：通过 index 找回 memory 对象
-        # 如果 retrieve 里的 doc_ids 有值，直接用 id 查
         if self.retriever.doc_ids:
             related_memories = []
             for i in indices:
@@ -263,29 +246,45 @@ class AgenticMemorySystem:
                     related_memories.append(mem)
             return related_memories
         else:
-            # 兼容旧逻辑：如果没存 ID，只能尝试通过内容反查 (不推荐，容易重名)
-            # 或者直接返回内容
-            # 这里简单返回 None 防止报错，实际应该用上面的 ID 逻辑
             return []
 
     def consolidate_memories(self):
         """Consolidate all memories in the system."""
-        # 这里的 model_name 需要保持一致，直接重新初始化
-        self.retriever = HybridRetriever(model_name=None)  # 重置检索器 (使用默认路径)
+        # 重新从 Manager 获取所有数据并重建索引
         all_memories = self.memory_manager.get_all_memories()
+        if not all_memories:
+            self.retriever.clear()
+            return
 
         all_contents = [memory.content for memory in all_memories]
         all_ids = [memory.id for memory in all_memories]
 
-        self.retriever.add_documents(all_contents, ids=all_ids)  # 重新添加所有记忆块到检索器
-        print("Memories consolidated.")
+        self.retriever.add_documents(all_contents, ids=all_ids)
+        # print("Memories consolidated.")
+
+    # ==========================================
+    # ✅ 新增：系统级清空方法
+    # ==========================================
+    def clear(self):
+        """完全重置系统（清空存储和索引）"""
+        self.memory_manager.clear()
+        self.retriever.clear()
+        # print("[AgenticMemorySystem] System fully reset.")
 
 
 if __name__ == '__main__':
     print("Testing Memory System...")
     memory_system = AgenticMemorySystem()
     note_id = memory_system.add_note("This is a general about neural networks.")
+
+    print("\n--- Testing Retrieval ---")
     query = "What are neural networks?"
     related_memories = memory_system.find_related_memories(query)
     for memory in related_memories:
-        print(memory)
+        print(f"Found: {memory.content}")
+
+    print("\n--- Testing Clear ---")
+    memory_system.clear()
+    related_memories = memory_system.find_related_memories(query)
+    if not related_memories:
+        print("Clear successful! No memories found.")
