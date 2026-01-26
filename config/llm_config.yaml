@@ -10,3 +10,12 @@ qwen:
     base_url: "http://localhost:8001/v1"
     model_name: "qwen"
     api_key: "EMPTY"
+
+# [新增] GRPO 微调后的模型 (使用 vLLM 启动在 8002 端口)
+qwen_grpo:
+    # 注意：这里我们规划用 8002 端口
+    base_url: "http://localhost:8002/v1"
+    # 这里记录一下路径，方便启动脚本读取 (客户端代码主要用 base_url)
+    model_path: "/root/.nyq/graduate/model/Qwen2.5-GRPO-Merged"
+    model_name: "qwen-grpo-merged"
+    api_key: "EMPTY"

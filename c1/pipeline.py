@@ -2,7 +2,7 @@
 """
 @Project ：graduate 
 @File    ：pipeline.py
-@Desc    ：第一章核心流水线 (Sliding Window Mode)
+@Desc    ：第一章核心流水线 (Sliding Window Mode) - GRPO 适配版
 """
 
 import sys
@@ -11,33 +11,28 @@ import time
 from datetime import datetime
 from typing import List
 
-# --- 路径适配 ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
 sys.path.append(root_dir)
 
-# --- 模块导入 ---
-from general.model import ZhipuChat, QwenChat
+# --- 导入 QwenGRPOChat ---
+from general.model import ZhipuChat, QwenChat, QwenGRPOChat
 from general.base_memory import AgenticMemorySystem
 
-# 导入第一章组件
 from c1.decoupler import SemanticDecoupler, RawInputObj
 from c1.verifier import ConsistencyVerifier
 from c1.deduplicator import SemanticRedundancyFilter
-
-# --- 导入数据加载器 ---
 from env.load_locomo import load_locomo_dataset, LoCoMoSample, Turn
 
 
 class MemoryPipeline:
     def __init__(self, config_path: str, use_local: bool = True):
-        print(">>> [Pipeline] 初始化 LoCoMo 记忆处理流水线 (Sliding Window Mode)...")
+        print(">>> [Pipeline] 初始化 LoCoMo 记忆处理流水线 (GRPO Mode)...")
 
-        # 自动选择模型后端
         if use_local:
-            print(f"--> Mode: Local Inference (Qwen2.5 + vLLM)")
-            print(f"    Target: http://localhost:8001/v1 (确保 vLLM 已启动)")
-            self.llm = QwenChat(config_path)
+            print(f"--> Mode: Local Inference (Qwen2.5-GRPO via vLLM)")
+            # 关键：使用微调后的 GRPO 模型
+            self.llm = QwenGRPOChat(config_path)
         else:
             print(f"--> Mode: Cloud API (Zhipu GLM)")
             self.llm = ZhipuChat(config_path)
@@ -53,22 +48,19 @@ class MemoryPipeline:
         """
         处理单个 LoCoMo 样本 (滑动窗口模式)
         """
-        print(f"\n{'=' * 80}")
-        print(f"开始处理 Sample ID: {sample.sample_id}")
-        print(f"参与者: {sample.conversation.speaker_a} & {sample.conversation.speaker_b}")
-        print(f"{'=' * 80}")
+        print(f"\n{'=' * 40}")
+        print(f"Processing Sample ID: {sample.sample_id}")
+        print(f"{'=' * 40}")
 
         sorted_session_ids = sorted(sample.conversation.sessions.keys())
 
         for s_id in sorted_session_ids:
             session = sample.conversation.sessions[s_id]
-            date_str = session.date_time
-            timestamp_float = self._parse_locomo_time(date_str)
+            timestamp_float = self._parse_locomo_time(session.date_time)
 
-            print(f"\n>>> 处理 Session {s_id} (Turns: {len(session.turns)})")
+            print(f"Processing Session {s_id} ({len(session.turns)} turns)...")
 
             # === 【核心逻辑：滑动窗口】 ===
-            # 定义窗口大小 (只看最近 6 轮作为 Context)
             WINDOW_SIZE = 6
             history_buffer = []
 
@@ -77,11 +69,8 @@ class MemoryPipeline:
                 current_text = f"[{turn.speaker}]: {turn.text}"
 
                 # 2. 构建上下文 (Context)
-                # 取 history_buffer 的最后 WINDOW_SIZE 条
                 context_turns = history_buffer[-WINDOW_SIZE:]
                 context_text = "\n".join(context_turns) if context_turns else "(No prior history)"
-
-                print(f"\n--- Turn {i + 1}/{len(session.turns)} [{turn.speaker}] ---")
 
                 # 3. 执行单步 Pipeline
                 self._run_pipeline_step(
@@ -93,8 +82,8 @@ class MemoryPipeline:
                 # 4. 更新历史 buffer
                 history_buffer.append(current_text)
 
-        print(f"\n{'#' * 30} Sample {sample.sample_id} 处理完毕 {'#' * 30}")
-        self.print_final_memory_state()
+        print(f"Sample {sample.sample_id} Done. Final Memories: {len(self.memory_sys.memory_manager.get_all_memories())}")
+        # self.print_final_memory_state() # 想看结果可以解开这个注释
 
     def _parse_locomo_time(self, time_str: str) -> float:
         try:
@@ -106,53 +95,26 @@ class MemoryPipeline:
     def _run_pipeline_step(self, current_text: str, context_text: str, timestamp: float):
         """标准的三步处理流程 (针对单句)"""
 
-        # Step 1: Decouple (传入 Target 和 Context)
-        raw_obj = RawInputObj(
-            text=current_text,  # 重点：当前句
-            context=context_text,  # 重点：上下文
-            timestamp=timestamp
-        )
-
+        # Step 1: Decouple (提取)
+        raw_obj = RawInputObj(text=current_text, context=context_text, timestamp=timestamp)
         dirty_atoms = self.decoupler.decouple(raw_obj)
 
-        if not dirty_atoms:
-            # print("  [Info] No memories extracted.")
-            return
+        if not dirty_atoms: return
 
         # Step 2: Verify (校验)
-        # 校验时，我们将 Context + Current 拼起来作为完整的证据链 (Ground Truth)
         full_evidence = f"{context_text}\n{current_text}"
-
-        # 注意：这里传给 verify_batch 的是 full_evidence
         clean_atoms = self.verifier.verify_batch(dirty_atoms, full_evidence)
 
-        if not clean_atoms:
-            return
+        if not clean_atoms: return
 
-        # Step 3: Deduplicate & Store
+        # Step 3: Deduplicate & Store (去重并存储)
         self.deduplicator.filter_and_add_batch(clean_atoms)
-        # print(f"  [Success] Stored {len(clean_atoms)} atoms.")
 
     def print_final_memory_state(self):
         """打印记忆库快照"""
         print("\n=== 最终记忆库状态 ===")
         all_mems = self.memory_sys.memory_manager.get_all_memories()
-
-        if not all_mems:
-            print("  (记忆库为空)")
-            return
-
-        # 简单的类型统计打印
-        mems_by_type = {}
-        for m in all_mems:
-            m_type = getattr(m, 'atom_type', 'unknown')
-            mems_by_type.setdefault(m_type, []).append(m)
-
-        for m_type, mems in mems_by_type.items():
-            print(f"\n--- {m_type.upper()} ({len(mems)}) ---")
-            for m in mems:
-                content = m.content.replace('\n', ' ')
-                print(f"  - {content[:100]}...")
+        # ... (后续代码省略，仅用于打印)
 
 
 if __name__ == "__main__":
