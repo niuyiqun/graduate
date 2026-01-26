@@ -9,6 +9,7 @@ import json
 import requests
 import yaml
 import re
+import ast
 from typing import List, Dict, Any
 from abc import ABC, abstractmethod
 
@@ -170,39 +171,33 @@ class QwenChat(BaseModel):
 class QwenGRPOChat(BaseModel):
     """
     专门用于调用 GRPO 微调后的 Qwen 模型。
-    特点：读取 qwen_grpo 配置，连接 8002 端口，自带调试探针。
+    修复版：支持标准 JSON (双引号) 和 Python Dict (单引号)。
     """
 
     def __init__(self, config_path: str = './config/llm_config.yaml') -> None:
         super().__init__(config_path)
-        # 读取 qwen_grpo 配置
         grpo_conf = self.config.get("qwen_grpo", {})
-
-        # 自动补全 URL (默认 8002)
         base_url = grpo_conf.get("base_url", "http://localhost:8002/v1")
         if not base_url.endswith('/chat/completions'):
             self.api_url = f"{base_url.rstrip('/')}/chat/completions"
         else:
             self.api_url = base_url
-
         self.model_name = grpo_conf.get("model_name", "qwen-grpo-merged")
         self.api_key = grpo_conf.get("api_key", "EMPTY")
         self.load_model()
 
     def load_model(self) -> None:
-        print('================ QwenGRPOChat (Fine-Tuned) initialized ================')
+        print('================ QwenGRPOChat (Fix Single Quote) initialized ================')
         print(f"Target URL: {self.api_url}")
-        print(f"Model Name: {self.model_name}")
 
-    def chat(self, messages: List[Dict[str, Any]]) -> Dict[str, Any]:
+    def chat(self, messages: List[Dict[str, Any]], parse_json: bool = True) -> Dict[str, Any]:
         """
-        发送请求，并对返回的 JSON 进行解析。
-        包含详细的 Debug 输出机制。
+        发送请求，并对返回结果进行超强鲁棒性解析。
         """
         payload = {
             "model": self.model_name,
             "messages": messages,
-            "temperature": 0.1,  # GRPO 模型在 0.1 下表现最好
+            "temperature": 0.1,
             "max_tokens": 2048
         }
         headers = {
@@ -215,36 +210,37 @@ class QwenGRPOChat(BaseModel):
             resp.raise_for_status()
             content = resp.json()['choices'][0]['message']['content']
 
-            # 1. 尝试正则提取 Markdown 包裹的 JSON
+            # 如果不需要解析 JSON，直接返回文本
+            if not parse_json:
+                return {"content": content, "raw_response": content}
+
+            # === 🔥 核心修复逻辑 ===
+            extracted_text = content
+
+            # 1. 尝试去除 Markdown 包裹
             match = re.search(r"```(?:json)?\s*(\{.*?\})\s*```", content, re.DOTALL)
             if match:
+                extracted_text = match.group(1)
+            else:
+                # 尝试寻找大括号
+                start = content.find("{")
+                end = content.rfind("}")
+                if start != -1 and end != -1:
+                    extracted_text = content[start:end + 1]
+
+            # 2. 第一轮尝试：标准 JSON 解析
+            try:
+                return json.loads(extracted_text)
+            except json.JSONDecodeError:
+                # 3. 🔥 第二轮尝试：Python 字典解析 (专门解决单引号问题)
                 try:
-                    return json.loads(match.group(1))
-                except json.JSONDecodeError:
-                    pass  # 正则匹配到了但解析失败，继续往下走
+                    # ast.literal_eval 可以安全地把字符串 "{'a': 1}" 转成字典
+                    return ast.literal_eval(extracted_text)
+                except Exception:
+                    pass
 
-            # 2. 尝试寻找裸露的大括号 {}
-            start = content.find("{")
-            end = content.rfind("}")
-
-            if start != -1 and end != -1:
-                json_str = content[start:end + 1]
-                try:
-                    return json.loads(json_str)
-                except json.JSONDecodeError as e:
-                    print(f"⚠️ [QwenGRPO] 发现 JSON 结构但解析失败: {e}")
-                    # 如果解析失败，不要直接 return，继续打印 Raw Output 以便分析
-
-            # 3. 🚨 到了这里说明解析彻底失败，启动“死因诊断”
-            print("\n" + "!" * 50)
-            print("[QwenGRPO] Warn: Valid JSON not found in response.")
-            print("💀 [Fatal Raw Output] (模型原始输出如下):")
-            print(">>> " + "-" * 20 + " START " + "-" * 20)
-            print(content)
-            print("<<< " + "-" * 20 + "  END  " + "-" * 20)
-            print("!" * 50 + "\n")
-
-            # 返回兜底字典，防止下游 crash，同时保留原始文本供 Decoupler 二次尝试
+            # 4. 如果都失败了，打印错误但不要崩溃
+            print(f"[Warn] Parse Failed. Raw: {extracted_text[:50]}...")
             return {"content": content, "raw_response": content}
 
         except Exception as e:
