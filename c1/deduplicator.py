@@ -7,6 +7,13 @@
           ✅ 修正：atom_type 安全获取
 """
 
+# -*- coding: UTF-8 -*-
+"""
+@Project ：graduate
+@File    ：deduplicator.py
+@Desc    ：【Debug 显影版】打印所有 Drop 原因，彻底查清为什么记忆被杀
+"""
+
 import json
 import re
 from typing import List
@@ -33,13 +40,15 @@ class SemanticRedundancyFilter:
     def __init__(self, memory_system: AgenticMemorySystem, llm_model: BaseModel):
         self.memory_sys = memory_system
         self.llm = llm_model
+        # 调整阈值：稍微放宽一点，避免误杀
         self.SIM_THRESHOLD_LOW = 0.6
-        self.SIM_THRESHOLD_HIGH = 0.92
+        self.SIM_THRESHOLD_HIGH = 0.95
         self.json_pattern = re.compile(r"```(?:json)?\s*(\{.*?\})\s*```", re.DOTALL)
 
     def filter_and_add_batch(self, new_atoms: List):
-        """[主入口] 执行双层过滤"""
         if not new_atoms: return
+
+        # print(f"  🔍 [Deduplicator] Input Batch: {len(new_atoms)}")
 
         # Layer 1
         if len(new_atoms) > 1:
@@ -49,7 +58,6 @@ class SemanticRedundancyFilter:
 
         # Layer 2
         for atom in clean_atoms:
-            # 安全获取 type
             atype = getattr(atom, 'atom_type', 'episodic')
             if "episodic" in atype:
                 self._process_episodic_global(atom)
@@ -57,10 +65,10 @@ class SemanticRedundancyFilter:
                 self._process_semantic_global(atom)
 
     def _intra_batch_cross_view_compression(self, atoms: List) -> List:
-        """Layer 1"""
         if len(set(getattr(a, 'atom_type', 'u') for a in atoms)) == 1: return atoms
 
-        atoms_text = "\n".join([f"ID[{i}] Type={getattr(atom, 'atom_type', 'mem')}: {atom.content}" for i, atom in enumerate(atoms)])
+        atoms_text = "\n".join(
+            [f"ID[{i}] Type={getattr(atom, 'atom_type', 'mem')}: {atom.content}" for i, atom in enumerate(atoms)])
         user_content = DeduplicatorPrompt.build_layer1_input(atoms_text)
         messages = [{"role": "user", "content": user_content}]
 
@@ -72,20 +80,27 @@ class SemanticRedundancyFilter:
 
             keep_ids = res_data.get("keep_ids", [])
             if not keep_ids and "keep_ids" not in res_data: return atoms
+
+            # Debug 打印
+            if len(keep_ids) < len(atoms):
+                print(f"    ✂️ [Layer 1] Batch Compression: {len(atoms)} -> {len(keep_ids)}")
+
             return [atom for i, atom in enumerate(atoms) if i in keep_ids]
         except:
             return atoms
 
     def _process_episodic_global(self, new_atom):
-        """Layer 2A"""
+        """Layer 2A: Episodic"""
         related_memories = self.memory_sys.find_related_memories(new_atom.content, k=3)
         related_memories = [m for m in related_memories if m is not None]
 
         if not related_memories:
-            self._execute_action(ResolutionAction('add', "全新领域事件"), new_atom)
+            # print("    ✅ [Logic] No related memory -> Add")
+            self._execute_action(ResolutionAction('add', "全新事件"), new_atom)
             return
 
         old_mems_text = "\n".join([f"- [{getattr(m, 'atom_type', 'stored')}] {m.content}" for m in related_memories])
+
         user_content = DeduplicatorPrompt.build_episodic_predict_input(old_mems_text, new_atom.content)
         messages = [
             {"role": "system", "content": DeduplicatorPrompt.LAYER2_EPISODIC_SYSTEM},
@@ -98,13 +113,22 @@ class SemanticRedundancyFilter:
                 match = self.json_pattern.search(res)
                 res = json.loads(match.group(1)) if match else {"surprise_level": "high"}
 
-            if res.get("surprise_level") != "low":
-                self._execute_action(ResolutionAction('add', str(res.get('reasoning'))), new_atom)
-        except:
+            level = res.get("surprise_level", "high")
+            reason = res.get("reasoning", "No reasoning")
+
+            if level != "low":
+                # print(f"    ✅ [Logic] Surprise={level} -> Add")
+                self._execute_action(ResolutionAction('add', str(reason)), new_atom)
+            else:
+                # 🔥 重点：打印为什么被 Drop
+                print(f"    🗑️ [DROP] Surprise=LOW | Content: {new_atom.content[:30]}... | Reason: {reason}")
+
+        except Exception as e:
+            print(f"    ⚠️ [Error] LLM Check Failed: {e}")
             self._execute_action(ResolutionAction('add', "Error fallback"), new_atom)
 
     def _process_semantic_global(self, new_atom):
-        """Layer 2B"""
+        """Layer 2B: Semantic"""
         related_memories = self.memory_sys.find_related_memories(new_atom.content, k=3)
         related_memories = [m for m in related_memories if m is not None]
 
@@ -112,19 +136,25 @@ class SemanticRedundancyFilter:
             self._execute_action(ResolutionAction('add'), new_atom)
             return
 
+        # 1. 向量门控
         try:
             emb_model = self.memory_sys.retriever.model
             new_emb = emb_model.encode([new_atom.content])
             old_emb = emb_model.encode([related_memories[0].content])
             similarity = cosine_similarity(new_emb, old_emb)[0][0]
 
-            if similarity > self.SIM_THRESHOLD_HIGH: return
+            if similarity > self.SIM_THRESHOLD_HIGH:
+                print(f"    🗑️ [DROP] Vector Sim Too High ({similarity:.4f}) | Content: {new_atom.content[:30]}...")
+                return
+
             if similarity < self.SIM_THRESHOLD_LOW:
+                # print(f"    ✅ [Logic] Vector Sim Low ({similarity:.4f}) -> Add")
                 self._execute_action(ResolutionAction('add'), new_atom)
                 return
         except:
             pass
 
+        # 2. LLM 逻辑判定
         old_mems_text = "\n".join([f"- {m.content}" for m in related_memories])
         user_content = DeduplicatorPrompt.build_semantic_entailment_input(old_mems_text, new_atom.content)
         messages = [
@@ -138,18 +168,19 @@ class SemanticRedundancyFilter:
                 match = self.json_pattern.search(res)
                 res = json.loads(match.group(1)) if match else {"action": "add"}
 
-            if res.get('action', 'add') != 'drop':
-                self._execute_action(ResolutionAction('add', str(res.get('reasoning'))), new_atom)
+            action = res.get('action', 'add')
+            reason = res.get('reasoning', "")
+
+            if action != 'drop':
+                self._execute_action(ResolutionAction('add', str(reason)), new_atom)
+            else:
+                print(f"    🗑️ [DROP] Entailment=True | Content: {new_atom.content[:30]}... | Reason: {reason}")
+
         except:
             self._execute_action(ResolutionAction('add'), new_atom)
 
     def _execute_action(self, action: ResolutionAction, new_atom):
-        """
-        [修正版 - 全属性存储]
-        将 Decoupler 提取的所有元数据 (Timestamp, Type) 透传给 BaseMemory
-        """
         try:
-            # 🔥 利用 **kwargs 传递所有属性给 base_memory.add_note -> MemoryNote
             note_id = self.memory_sys.add_note(
                 content=new_atom.content,
                 atom_type=getattr(new_atom, 'atom_type', 'general'),
@@ -157,6 +188,6 @@ class SemanticRedundancyFilter:
                 retrieval_count=0,
                 importance_score=1.0
             )
-            # print(f"✅ [SAVE] {getattr(new_atom, 'atom_type', 'G')}: {new_atom.content[:20]}...")
+            # print(f"      💾 Stored: {new_atom.content[:20]}...")
         except Exception as e:
-            print(f"❌ [Save Error] 存储失败: {e}")
+            print(f"❌ [Save Error] {e}")

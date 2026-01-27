@@ -121,6 +121,7 @@ class VerifierPrompt:
 class DeduplicatorPrompt:
     """
     研究内容一(3)：基于逻辑博弈与预测偏差的双层压缩
+    【修正版】：修正了“惊奇度”定义，防止过度删除合乎逻辑的新事件。
     """
 
     # === Layer 1: 批次内博弈 ===
@@ -129,8 +130,14 @@ class DeduplicatorPrompt:
 
 ### 核心判据：信息增益 (Information Gain)
 不要简单地让 Rule 覆盖 Event。必须判断 Event 是否提供了 Rule 之外的**新细节**。
-* **Redundant (冗余)**: Rule="喜辣", Event="吃辣"。-> Event 零增益，丢弃 Event。
-* **Informative (有益)**: Rule="喜辣", Event="今天尝试了特辣火锅并拉肚子"。-> Event 包含特例/后果，**保留两者**。
+* **Redundant (冗余 - 丢弃)**: 
+    - 完全重复的内容。
+    - 只是同义改写 (e.g. "他很开心" vs "他非常高兴")。
+    - Rule 已经完全包含了 Event 的所有信息 (e.g. Rule="不吃辣", Event="没吃辣")。
+* **Informative (有益 - 保留)**: 
+    - Rule="喜辣", Event="今天尝试了特辣火锅并拉肚子"。 (包含具体实例/后果 -> 保留)
+    - Event A="User is busy", Event B="User is working on a project". (Event B 提供了具体细节 -> 保留)
+    - **不同主体**的动作永远互不冗余 (e.g. "A is sad" 不能覆盖 "B is happy")。
 """
 
     @staticmethod
@@ -151,15 +158,25 @@ class DeduplicatorPrompt:
 ```"""
 
     # === Layer 2A: Episodic Stream (预测偏差) ===
-    LAYER2_EPISODIC_SYSTEM = """你是一个“惊奇度检测器”。
-你的任务是判断【新事件 (Episodic)】相对于【现有知识 (Semantic)】是否具有“逻辑惊奇度 (Logic Surprise)”。
+    # 🔥 核心修改：重新定义了“惊奇度”，防止误杀新事件
+    LAYER2_EPISODIC_SYSTEM = """你是一个“情节新颖性检测器 (Episodic Novelty Detector)”。
+你的任务是判断【新事件 (New Event)】相对于【现有上下文 (Context)】是否包含**事实性新信息**。
+
+### ⚠️ 重要原则:
+- **不要**仅仅因为新事件“合乎逻辑”或“符合人设”就将其视为冗余。
+- **不要**因为 Context 里有一个宽泛的状态（如“User is busy”）就丢弃具体的后续动作（如“User finished the report”）。
 
 ### 判定标准:
-1. **Low Surprise (符合预测)** -> 冗余:
-   如果现有 Rule 能够解释或预测该 Event (e.g., Rule="每天喝咖啡", Event="今天喝了咖啡")。
-   这意味着该事件没有提供新信息量。
-2. **High Surprise (违背预测/新知)** -> 保留:
-   如果 Event 违背了 Rule (e.g., Rule="不吃辣", Event="点了麻辣火锅")，或者这是一个全新的独立事件。
+1. **Low Surprise (冗余/完全重复)** -> **Drop**:
+   - 只有当 Context **已经显式包含**了该 Event 的核心信息（时间、地点、人物、动作）时。
+   - 或者 Event 只是 Context 的简单摘要/复述。
+   - 例子: Context="Bob ate an apple at 2pm.", Event="Bob had fruit this afternoon." -> Low Surprise.
+
+2. **High Surprise (新信息/细节补充)** -> **Keep**:
+   - 这是一个新发生的时间片段，Context 里没记录过。
+   - 即使它符合 Character 的性格（预测之内），只要是**具体的、未记录过的实例**，就是 High Surprise。
+   - 例子: Context="Bob likes apples.", Event="Bob ate an apple at 2pm." -> **High Surprise** (具体的实例化行为).
+   - 例子: Context="Melanie is busy.", Event="Caroline went to a party." -> **High Surprise** (不同主体的独立事件).
 """
 
     @staticmethod
@@ -171,7 +188,9 @@ class DeduplicatorPrompt:
 "{new_atom_content}"
 
 ### 任务:
-判断新事件是否令系统感到“惊奇”？
+1. 检查 Context 中是否**已经存在**这个具体事件？
+2. 如果 Context 只是暗示了可能性，但没记录具体发生，则必须视为 **High Surprise**。
+
 返回 json: {{"surprise_level": "low" | "high", "reasoning": "..."}}
 """
 
@@ -181,9 +200,13 @@ class DeduplicatorPrompt:
 
 ### 判定标准:
 1. **Drop (被蕴含/重复)**:
-   旧规则是上位概念，完全覆盖新规则 (e.g., Old="擅长所有球类运动", New="会打篮球")。
+   - 旧规则是上位概念，完全覆盖新规则 (e.g., Old="擅长所有球类运动", New="会打篮球")。
+   - 语义完全重复。
+
 2. **Add (新知识/特例)**:
-   新规则包含旧规则未提及的属性，或修正了旧规则。
+   - 新规则包含旧规则未提及的属性。
+   - 新规则修正了旧规则。
+   - 只要有任何事实性细节差异，就选择 Add。
 """
 
     @staticmethod
