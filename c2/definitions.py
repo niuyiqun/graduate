@@ -57,11 +57,11 @@ class MemoryNode:
     # 时间戳 (用于构建 TEMPORAL 边)
     timestamp: Optional[Any] = None
 
-    # [SIMPLIFIED] 生产环境应使用 Vector DB (如 Milvus/Faiss) 存储
-    # 这里为了演示直接挂在对象上
+    # 向量表示 (用于 GNN 和隐式召回)
+    # [Optimized] 这里直接存储从 C1 传递过来或 SemanticBuilder 计算的向量
     embedding: Optional[List[float]] = None
 
-    # 元数据 (存储来源、置信度等)
+    # 元数据 (存储来源、提取到的实体、置信度等)
     meta: Dict = field(default_factory=dict)
 
     # [THESIS] 能量值 (Energy Level)
@@ -76,11 +76,14 @@ class MemoryNode:
         return NodeType.CONCEPTUAL
 
     def to_dict(self):
+        """序列化为字典"""
         return {
             "id": self.node_id,
             "content": self.content,
             "category": self.category.value,
             "type": self.node_type.value,
             "timestamp": self.timestamp,
-            "energy": self.energy_level
+            "energy": self.energy_level,
+            # 注意：embedding 通常太大，不建议在普通日志中打印，但存储时需要
+            "meta": self.meta
         }

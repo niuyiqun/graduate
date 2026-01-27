@@ -2,8 +2,6 @@
 # c2/builders/base.py
 import logging
 
-logger = logging.getLogger(__name__)
-
 class BaseGraphBuilder:
     """
     [THESIS] 图构建器的基类 (Abstract Base Class)

@@ -1,51 +1,76 @@
 # -*- coding: UTF-8 -*-
 # c2/builders/evolution.py
-import logging
-from typing import List
 
 from c2.builders.base import BaseGraphBuilder
 from c2.definitions import EdgeType, MemoryNode
+from c2.prompts import CONFLICT_DETECTION_PROMPT
 
-logger = logging.getLogger(__name__)
 
 class EvolutionBuilder(BaseGraphBuilder):
     """
-    [THESIS] Phase 2: 冲突检测与记忆演化
+    Phase 2: 冲突检测与版本更替
     """
+
     def __init__(self, llm_client):
         super().__init__()
         self.llm = llm_client
         self.decay_factor = 0.5
 
-    def process(self, new_nodes: List[MemoryNode], graph):
+    def process(self, new_nodes, graph):
         all_nodes = graph.get_all_nodes()
-        # [SIMPLIFIED] 只看最近的 10 个节点
-        recent_nodes = all_nodes[-10:]
+        if len(all_nodes) < 2: return
 
-        for new_node in new_nodes:
-            for old_node in recent_nodes:
-                if new_node.node_id == old_node.node_id: continue
-                # 只比较同类型
-                if new_node.node_type != old_node.node_type: continue
-                # 只比较 Profile (画像) 类，这类最容易冲突
-                if "profile" not in new_node.category.value: continue
+        # 只比较 Profile 类型的节点
+        profile_nodes = [n for n in all_nodes if "profile" in n.category.value]
+        if len(profile_nodes) < 2: return
 
-                if self._detect_conflict(new_node.content, old_node.content):
-                    logger.info(f"    ⚔️ [Conflict] 冲突: '{new_node.content[:10]}' vs '{old_node.content[:10]}'")
-                    graph.add_edge(new_node.node_id, old_node.node_id, EdgeType.VERSION)
-                    old_node.energy_level *= self.decay_factor
+        conflict_count = 0
 
-    def _detect_conflict(self, text_a: str, text_b: str) -> bool:
-        if not self.llm: return False
-        prompt = f"""
-        判断以下两句话是否存在【事实冲突】？
-        1: {text_a}
-        2: {text_b}
-        冲突回答YES，否则NO。
-        """
+        for i in range(len(profile_nodes)):
+            for j in range(i + 1, len(profile_nodes)):
+                n1 = profile_nodes[i]
+                n2 = profile_nodes[j]
+
+                # NLI 检测
+                is_conflict, debug_msg = self._detect_conflict(n1.content, n2.content)
+
+                if is_conflict:
+                    print(f"    ⚔️ [Conflict] '{n1.content}' vs '{n2.content}'")
+
+                    # 判断谁新谁旧
+                    ts1 = float(n1.timestamp) if n1.timestamp else 0
+                    ts2 = float(n2.timestamp) if n2.timestamp else 0
+
+                    newer = n2 if ts2 >= ts1 else n1
+                    older = n1 if newer == n2 else n2
+
+                    graph.add_edge(newer.node_id, older.node_id, EdgeType.VERSION)
+                    older.energy_level *= self.decay_factor
+                    conflict_count += 1
+
+        if conflict_count > 0:
+            print(f"  🧬 [Evolution] Resolved {conflict_count} conflicts")
+
+    def _detect_conflict(self, text_a: str, text_b: str):
+        if not self.llm: return False, "No LLM"
+
+        prompt = CONFLICT_DETECTION_PROMPT.format(text_a=text_a, text_b=text_b)
+
         try:
             res = self.llm.chat([{"role": "user", "content": prompt}])
-            content = res.get("content", "").upper() if isinstance(res, dict) else str(res).upper()
-            return "YES" in content
-        except:
-            return False
+            content = ""
+            if isinstance(res, dict):
+                content = res.get("content", "")
+            else:
+                content = str(res)
+
+            content = content.strip().upper()
+
+            # 严格匹配 YES
+            if content == "YES":
+                return True, content
+            else:
+                return False, content
+
+        except Exception as e:
+            return False, str(e)

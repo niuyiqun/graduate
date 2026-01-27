@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import sys
+from datetime import datetime  # 🔥 [新增]
 
 # === 路径配置 ===
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -25,132 +26,155 @@ from c2.builders.evolution import EvolutionBuilder
 from c2.builders.emergence import EmergenceBuilder
 
 # 日志配置
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logging.basicConfig(level=logging.INFO, format='%(message)s')
 logger = logging.getLogger(__name__)
 
 
 class MemoryGraphPipeline:
-    def __init__(self, c1_output_path: str, graph_save_path: str, config_path: str):
+    def __init__(self, c1_output_path: str, output_path: str, config_path: str):
         self.c1_path = c1_output_path
-        self.save_path = graph_save_path
-        self.graph = MemoryGraph()
+        self.output_path = output_path
 
-        logger.info("正在初始化 QwenChat (Local vLLM)...")
+        print("\n" + "=" * 50)
+        print("🚀 [Pipeline] 初始化 QwenChat (Local vLLM)...")
         try:
             self.llm = QwenChat(config_path=config_path)
         except Exception as e:
-            logger.warning(f"LLM init failed: {e}. Some builders may not work.")
+            logger.warning(f"❌ LLM init failed: {e}")
             self.llm = None
 
-    def load_atoms(self):
-        """Step 0: 正确加载 C1 的层级化数据"""
-        if not os.path.exists(self.c1_path):
-            logger.error(f"❌ 找不到输入文件: {self.c1_path}")
-            return False
+        self.semantic_builder = BasicSemanticBuilder(self.llm)
+        print("✅ [Pipeline] 初始化完成")
+        print("=" * 50 + "\n")
 
-        logger.info(f"正在加载记忆原子: {self.c1_path}...")
-        total_atoms = 0
+    def _parse_timestamp(self, ts_val) -> float:
+        """🔥 [新增] 鲁棒的时间戳解析函数"""
+        if ts_val is None:
+            return 0.0
+        if isinstance(ts_val, (int, float)):
+            return float(ts_val)
+        if isinstance(ts_val, str):
+            try:
+                # 尝试解析标准格式 "2023-05-08 13:56:00"
+                dt = datetime.strptime(ts_val, "%Y-%m-%d %H:%M:%S")
+                return dt.timestamp()
+            except ValueError:
+                # 如果格式不对，尝试其他格式或直接返回 0
+                return 0.0
+        return 0.0
 
-        with open(self.c1_path, 'r', encoding='utf-8') as f:
-            for line_idx, line in enumerate(f):
-                if not line.strip(): continue
-                try:
-                    # 1. 解析每一行的 Sample 对象
-                    sample_data = json.loads(line)
+    def process_single_sample(self, sample_data: dict) -> dict:
+        source_id = sample_data.get("source_id", "unknown")
 
-                    # 2. 提取内部的 atom 列表
-                    # 兼容处理：有的文件可能是直接的列表，有的是包含 memory_atoms 键的对象
-                    atoms_list = []
-                    if isinstance(sample_data, list):
-                        atoms_list = sample_data
-                    elif isinstance(sample_data, dict):
-                        atoms_list = sample_data.get("memory_atoms", [])
+        # 1. 创建图
+        graph = MemoryGraph()
 
-                    # 3. 遍历列表创建节点
-                    for atom_data in atoms_list:
-                        # 字段映射: atom_type (File) -> category (Code)
-                        cat_str = atom_data.get('atom_type', 'unknown')
-                        try:
-                            category = AtomCategory(cat_str)
-                        except ValueError:
-                            # 尝试兼容处理，比如去掉前缀等，或者默认为 unknown
-                            category = AtomCategory.UNKNOWN
+        # 2. 加载原子
+        atoms_list = sample_data.get("memory_atoms", [])
+        if not atoms_list and isinstance(sample_data, list):
+            atoms_list = sample_data
 
-                        node = MemoryNode(
-                            node_id=atom_data.get('id', f"node_{line_idx}_{total_atoms}"),
-                            content=atom_data.get('content', ''),
-                            category=category,
-                            node_type=MemoryNode.map_category_to_type(cat_str),
-                            timestamp=atom_data.get('timestamp', 0),
-                            meta=atom_data  # 保留原始数据作为 meta
-                        )
-                        self.graph.add_node(node)
-                        total_atoms += 1
+        for idx, atom_data in enumerate(atoms_list):
+            cat_str = atom_data.get('atom_type', 'unknown')
+            try:
+                category = AtomCategory(cat_str)
+            except ValueError:
+                category = AtomCategory.UNKNOWN
 
-                except Exception as e:
-                    logger.warning(f"解析第 {line_idx} 行失败: {e}")
+            # 🔥 [修正] 使用解析后的 float 时间戳
+            ts_float = self._parse_timestamp(atom_data.get('timestamp'))
 
-        logger.info(f"✅ 成功加载 {total_atoms} 个原子 (来自 C1 输出)。")
-        return total_atoms > 0
+            node = MemoryNode(
+                node_id=atom_data.get('id', f"node_{idx}"),
+                content=atom_data.get('content', ''),
+                category=category,
+                node_type=MemoryNode.map_category_to_type(cat_str),
+                timestamp=ts_float,  # 这里传入 float
+                embedding=atom_data.get('embedding'),
+                meta=atom_data
+            )
+            graph.add_node(node)
+
+        nodes = graph.get_all_nodes()
+        if not nodes: return None
+
+        print(f"\n🔷 Processing Sample: {source_id} | Atoms: {len(nodes)}")
+
+        # === 3. 执行 Phase ===
+
+        # Phase 1
+        self.semantic_builder.process(nodes, graph)
+        try:
+            TemporalBuilder().process(nodes, graph)
+        except Exception as e:
+            print(f"❌ [Temporal] Error: {e}")
+
+        # Phase 2
+        try:
+            EvolutionBuilder(self.llm).process(nodes, graph)
+        except Exception as e:
+            print(f"❌ [Evolution] Error: {e}")
+
+        # Phase 3 & 4
+        try:
+            StructuralBuilder(self.llm).process(nodes, graph)
+        except Exception as e:
+            print(f"❌ [Structural] Error: {e}")
+
+        # Phase 5
+        try:
+            EmergenceBuilder(self.llm).process(nodes, graph)
+        except Exception as e:
+            print(f"❌ [Emergence] Error: {e}")
+
+        # 4. 统计结果
+        n_count = graph.graph.number_of_nodes()
+        e_count = graph.graph.number_of_edges()
+        print(f"✅ [Done] Stats: Nodes={n_count}, Edges={e_count}")
+
+        # 序列化
+        graph_data = graph.get_nx_graph()
+        import networkx.readwrite.json_graph as json_graph
+        json_data = json.loads(json.dumps(json_graph.node_link_data(graph_data)))
+
+        return {
+            "source_id": source_id,
+            "graph_data": json_data
+        }
 
     def run(self):
-        if not self.load_atoms():
+        if not os.path.exists(self.c1_path):
+            print(f"❌ Input file not found: {self.c1_path}")
             return
 
-        nodes_batch = self.graph.get_all_nodes()
-        if not nodes_batch:
-            logger.error("没有加载到任何有效节点，终止运行。")
-            return
+        os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
 
-        # === Phase 1: 基础骨架构建 ===
-        logger.info(">>> Phase 1: Skeleton Construction")
-        try:
-            sem_builder = BasicSemanticBuilder(self.llm)
-            sem_builder.process(nodes_batch, self.graph)
-        except Exception as e:
-            logger.error(f"SemanticBuilder Error: {e}", exc_info=True)
+        processed_count = 0
+        with open(self.c1_path, 'r', encoding='utf-8') as fin, \
+                open(self.output_path, 'w', encoding='utf-8') as fout:
 
-        try:
-            temp_builder = TemporalBuilder()
-            temp_builder.process(nodes_batch, self.graph)
-        except Exception as e:
-            logger.error(f"TemporalBuilder Error: {e}")
+            for line in fin:
+                if not line.strip(): continue
+                try:
+                    sample = json.loads(line)
+                    result = self.process_single_sample(sample)
 
-        # === Phase 2: 演化 ===
-        logger.info(">>> Phase 2: Evolution")
-        try:
-            evo_builder = EvolutionBuilder(self.llm)
-            evo_builder.process(nodes_batch, self.graph)
-        except Exception as e:
-            logger.error(f"EvolutionBuilder Error: {e}")
+                    if result:
+                        fout.write(json.dumps(result, ensure_ascii=False) + "\n")
+                        processed_count += 1
 
-        # === Phase 3 & 4: 神经符号隐式召回 ===
-        logger.info(">>> Phase 3/4: Neuro-Symbolic Recall")
-        try:
-            struct_builder = StructuralBuilder(self.llm)
-            struct_builder.process(nodes_batch, self.graph)
-        except Exception as e:
-            logger.error(f"StructuralBuilder Error: {e}", exc_info=True)
+                except Exception as e:
+                    print(f"❌ Critical Error processing line: {e}")
 
-        # === Phase 5: 概念涌现 ===
-        logger.info(">>> Phase 5: Concept Emergence")
-        try:
-            emerge_builder = EmergenceBuilder(self.llm)
-            emerge_builder.process(nodes_batch, self.graph)
-        except Exception as e:
-            logger.error(f"EmergenceBuilder Error: {e}")
-
-        # 3. 保存
-        self.graph.save_graph(self.save_path)
-        logger.info(f"🎉 图谱构建完成！已保存至: {self.save_path}")
+        print(f"\n🎉 全部完成！共生成 {processed_count} 张图谱。")
+        print(f"结果已保存至: {self.output_path}")
 
 
 if __name__ == "__main__":
     CONFIG_PATH = "config/llm_config.yaml"
-    C1_OUTPUT = "c1/output/locomo_extracted_atoms_no_embedding.jsonl"
-    C2_OUTPUT = "c2/output/memory_graph.json"
-
-    os.makedirs(os.path.dirname(C2_OUTPUT), exist_ok=True)
+    # 🔥 确保这里指向你打过 Embedding 补丁的文件
+    C1_OUTPUT = "c1/output/locomo_extracted_atoms_with_emb.jsonl"
+    C2_OUTPUT = "c2/output/memory_graphs.jsonl"
 
     pipeline = MemoryGraphPipeline(C1_OUTPUT, C2_OUTPUT, CONFIG_PATH)
     pipeline.run()

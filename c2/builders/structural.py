@@ -3,35 +3,33 @@
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.optim as optim
-import logging
 from typing import List
 
-# [FIX] 正确的导入
 from c2.builders.base import BaseGraphBuilder
 from c2.definitions import EdgeType, MemoryNode
+from c2.prompts import LOGIC_VERIFICATION_PROMPT
 
-logger = logging.getLogger(__name__)
-
-# [SIMPLIFIED] 尝试导入 PyG (PyTorch Geometric)。
+# 尝试导入 PyG
 try:
     from torch_geometric.nn import RGCNConv
 
     HAS_PYG = True
 except ImportError:
     HAS_PYG = False
-    logger.warning("⚠️ torch_geometric 未安装。GNN 模块将运行在简易模式。")
 
 
 class NeuroSymbolicGNN(nn.Module):
     """
-    [THESIS] 神经符号编码器
-    使用 RGCN (Relational Graph Convolutional Network) 处理异构图。
+    [THESIS] RGCN 模型定义
     """
 
     def __init__(self, in_dim, hidden_dim, out_dim, num_relations):
         super().__init__()
-        self.dummy_param = nn.Parameter(torch.empty(0))
+        # 哑参数
+        self.dummy = nn.Parameter(torch.empty(0))
+
         if HAS_PYG:
             self.conv1 = RGCNConv(in_dim, hidden_dim, num_relations)
             self.conv2 = RGCNConv(hidden_dim, out_dim, num_relations)
@@ -39,7 +37,8 @@ class NeuroSymbolicGNN(nn.Module):
             self.dropout = nn.Dropout(0.2)
 
     def encode(self, x, edge_index, edge_type):
-        if not HAS_PYG: return x
+        if not HAS_PYG: return x  # Fallback: 直接返回原始 Embedding
+
         x = self.conv1(x, edge_index, edge_type)
         x = self.relu(x)
         x = self.dropout(x)
@@ -47,48 +46,38 @@ class NeuroSymbolicGNN(nn.Module):
         return x
 
 
-class StructuralBuilder(BaseGraphBuilder):  # [FIX] 继承 BaseGraphBuilder
+class StructuralBuilder(BaseGraphBuilder):
     """
-    [THESIS] Phase 3 & 4: 隐式召回与验证
+    Phase 3/4: 隐式召回
     """
 
     def __init__(self, llm_client):
         super().__init__()
-        # [SIMPLIFIED] 参数硬编码
-        self.in_dim = 384  # MiniLM 的维度是 384, 如果是 random 则是 384
+        self.llm = llm_client
+        self.in_dim = 384  # MiniLM 维度
         self.hidden_dim = 64
         self.out_dim = 32
         self.num_rels = 5
-
-        self.llm = llm_client
         self.model = NeuroSymbolicGNN(self.in_dim, self.hidden_dim, self.out_dim, self.num_rels)
         self.optimizer = optim.Adam(self.model.parameters(), lr=0.01)
 
-    def process(self, new_nodes: List[MemoryNode], graph):
-        # 1. 准备数据
+    def process(self, new_nodes, graph):
         nodes = graph.get_all_nodes()
         if len(nodes) < 3: return
 
         node_map = {n.node_id: i for i, n in enumerate(nodes)}
 
-        # [SIMPLIFIED] 特征初始化
-        # 如果 BasicSemanticBuilder 跑成功了，这里应该有 embedding
-        # 如果没有，用随机向量兜底，保证代码不崩
+        # 1. 准备 Tensor 数据
         x_list = []
         for n in nodes:
-            if n.embedding and len(n.embedding) > 0:
-                # 确保维度对齐，如果维度不对（比如换了模型），截断或补零
-                tensor_emb = torch.tensor(n.embedding)
-                if tensor_emb.shape[0] != self.in_dim:
-                    # 简单重新初始化一个随机的
-                    x_list.append(torch.randn(self.in_dim))
-                else:
-                    x_list.append(tensor_emb)
+            # 确保有 Embedding，没有则补零 (Real Logic)
+            if n.embedding and len(n.embedding) == self.in_dim:
+                x_list.append(torch.tensor(n.embedding))
             else:
-                x_list.append(torch.randn(self.in_dim))
+                x_list.append(torch.zeros(self.in_dim))
         x = torch.stack(x_list)
 
-        # 构建边索引
+        # 2. 准备边数据
         edges = graph.get_all_edges()
         edge_indices = []
         edge_types = []
@@ -103,86 +92,74 @@ class StructuralBuilder(BaseGraphBuilder):  # [FIX] 继承 BaseGraphBuilder
                 edge_indices.append([node_map[u], node_map[v]])
                 etype = attr.get('type', EdgeType.SEMANTIC)
 
-                # [FIX] 兼容处理：etype 可能是字符串或 Enum
-                if hasattr(etype, 'value'):  # 是 Enum
-                    # 找到对应的 key
-                    for k, val in edge_type_map.items():
+                val = 0
+                if hasattr(etype, 'value'):  # Enum
+                    for k, v_idx in edge_type_map.items():
                         if k.value == etype.value:
-                            edge_types.append(val)
+                            val = v_idx;
                             break
-                    else:
-                        edge_types.append(0)
-                else:  # 是字符串
-                    # 尝试匹配字符串
-                    found = False
-                    for k, val in edge_type_map.items():
-                        if k.value == etype:
-                            edge_types.append(val)
-                            found = True
-                            break
-                    if not found: edge_types.append(0)
+                edge_types.append(val)
 
-        if not edge_indices: return
+        # 3. 训练/推断
+        if edge_indices:
+            edge_index = torch.tensor(edge_indices, dtype=torch.long).t()
+            edge_type = torch.tensor(edge_types, dtype=torch.long)
 
-        edge_index = torch.tensor(edge_indices, dtype=torch.long).t()
-        edge_type = torch.tensor(edge_types, dtype=torch.long)
-
-        # 2. 自监督训练 GNN
-        if HAS_PYG:
-            self.model.train()
-            for _ in range(5):  # [SIMPLIFIED] 只训练 5 epoch
-                self.optimizer.zero_grad()
-                z = self.model.encode(x, edge_index, edge_type)
-                loss = torch.mean(z ** 2)
-                loss.backward()
-                self.optimizer.step()
-
-        # 3. 隐式召回
-        self.model.eval()
-        with torch.no_grad():
+            # 训练 (仅当有 PyG 时)
             if HAS_PYG:
+                self.model.train()
+                for _ in range(5):
+                    self.optimizer.zero_grad()
+                    z = self.model.encode(x, edge_index, edge_type)
+                    loss = torch.mean(z ** 2)  # 简化 Loss
+                    loss.backward()
+                    self.optimizer.step()
+
+            # 推断 Embedding (结构化或原始)
+            self.model.eval()
+            with torch.no_grad():
                 z = self.model.encode(x, edge_index, edge_type)
-            else:
-                z = x
+        else:
+            z = x  # 无边时直接用 Content Embedding
 
-            sim_matrix = torch.matmul(z, z.t())
+        # 4. 计算相似度 (Cosine Similarity via Dot Product)
+        # 归一化以计算 Cosine
+        z_norm = F.normalize(z, p=2, dim=1)
+        sim_matrix = torch.matmul(z_norm, z_norm.t())
 
-        # 4. 语义验证
-        # [SIMPLIFIED] 阈值设低点以便看到效果
-        threshold = 3.0
+        # 5. 筛选 Top-K 隐式关联
+        threshold = 0.85  # Cosine 阈值
         rows, cols = torch.where(sim_matrix > threshold)
 
         candidates = []
         existing_edges = set((u, v) for u, v, _ in edges)
 
         for r, c in zip(rows, cols):
-            if len(candidates) >= 2: break  # [SIMPLIFIED] 限制数量
+            if len(candidates) >= 2: break  # 限制验证数量
             if r >= c: continue
 
-            u_node = nodes[r.item()]
-            v_node = nodes[c.item()]
+            u_id, v_id = nodes[r.item()].node_id, nodes[c.item()].node_id
 
-            if (u_node.node_id, v_node.node_id) in existing_edges: continue
-            if (v_node.node_id, u_node.node_id) in existing_edges: continue
+            if (u_id, v_id) not in existing_edges and (v_id, u_id) not in existing_edges:
+                candidates.append((nodes[r.item()], nodes[c.item()]))
 
-            candidates.append((u_node, v_node))
-
+        # 6. LLM 验证
+        added_count = 0
         for n1, n2 in candidates:
-            if self._llm_verify(n1, n2):
+            if self._llm_verify(n1.content, n2.content):
                 graph.add_edge(n1.node_id, n2.node_id, EdgeType.IMPLICIT)
-                logger.info(f"    🔗 [GNN+LLM] 发现隐式关联: {n1.content[:10]}... <-> {n2.content[:10]}...")
+                added_count += 1
+                print(f"    🔗 [Implicit] Linked: {n1.content[:10]}... <-> {n2.content[:10]}...")
 
-    def _llm_verify(self, n1, n2) -> bool:
+        if added_count > 0:
+            print(f"  🕸️ [Structural] Added {added_count} implicit edges")
+
+    def _llm_verify(self, text_a, text_b):
         if not self.llm: return False
-        prompt = f"""
-        判断以下两个片段是否有逻辑关联？
-        A: {n1.content}
-        B: {n2.content}
-        有则回答YES，无则NO。
-        """
+        prompt = LOGIC_VERIFICATION_PROMPT.format(text_a=text_a, text_b=text_b)
         try:
             res = self.llm.chat([{"role": "user", "content": prompt}])
-            content = res.get("content", "").upper() if isinstance(res, dict) else str(res).upper()
-            return "YES" in content
+            content = str(res.get("content", "")).strip().upper()
+            return content == "YES"
         except:
             return False

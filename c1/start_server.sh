@@ -14,7 +14,7 @@ source "$CONDA_BASE/etc/profile.d/conda.sh"
 conda activate mem
 
 echo ">>> 启动 Qwen Server..."
-CUDA_VISIBLE_DEVICES=7 python -m vllm.entrypoints.openai.api_server \
+CUDA_VISIBLE_DEVICES=6 python -m vllm.entrypoints.openai.api_server \
   --model /root/.nyq/graduate/model/Qwen2.5-7B-Instruct \
   --served-model-name qwen \
   --trust-remote-code \
