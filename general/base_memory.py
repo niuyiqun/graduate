@@ -2,13 +2,13 @@
 """
 @Project ：graduate
 @File    ：base_memory.py
-@Desc    ：【Debug 版】底层存储 + 探针
+@Desc    ：【增强版】支持存储 Embedding 的多模态记忆基类
 """
 import pickle
 import uuid
 import os
 from abc import abstractmethod, ABC
-from typing import Optional, List
+from typing import Optional, List, Union
 from datetime import datetime
 from rank_bm25 import BM25Okapi
 
@@ -16,23 +16,27 @@ import numpy as np
 from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
 
+# --- 1. 动态获取项目根目录 ---
 current_dir = os.path.dirname(os.path.abspath(__file__))
 project_root = os.path.dirname(current_dir)
 DEFAULT_MODEL_PATH = os.path.join(project_root, "model", "all-MiniLM-L6-v2")
 
 
 class MemoryNote(ABC):
+    """基本记忆块类，可扩展"""
+
     def __init__(self,
-                 content: str,
-                 id: Optional[str] = None,
-                 valid: Optional[bool] = True,
-                 importance_score: Optional[float] = None,
-                 retrieval_count: Optional[int] = 0,
-                 timestamp: Optional[str] = None,
-                 last_accessed: Optional[str] = None,
-                 atom_type: str = "general"
+                 content: str,  # 压缩后内容
+                 id: Optional[str] = None,  # 块标识
+                 valid: Optional[bool] = True,  # 块是否有效
+                 importance_score: Optional[float] = None,  # 优势值
+                 retrieval_count: Optional[int] = 0,  # 该记忆块被检索的次数
+                 timestamp: Optional[str] = None,  # 记忆块的时间戳
+                 last_accessed: Optional[str] = None,  # 记录最后一次访问该记忆块的时间
+                 atom_type: str = "general",  # 记忆类型
+                 # 🔥【核心新增】支持存储 Embedding (List[float])
+                 embedding: Optional[List[float]] = None
                  ):
-        # ⚠️ 注意：每次 new 的时候 uuid.uuid4() 保证 ID 唯一
         self.id = id or str(uuid.uuid4())
         self.content = content
         self.valid = valid
@@ -41,6 +45,8 @@ class MemoryNote(ABC):
         self.timestamp = timestamp or datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         self.last_accessed = last_accessed or self.timestamp
         self.atom_type = atom_type
+        # 保存向量
+        self.embedding = embedding
 
     def update_validity(self, valid: bool): self.valid = valid
 
@@ -52,9 +58,12 @@ class MemoryNote(ABC):
 
     def get_summary(self) -> str: return f"ID: {self.id}, Type: {self.atom_type}, Valid: {self.valid}"
 
-    def __str__(self) -> str: return f"[{self.atom_type.upper()}] MemoryNote({self.id}): {self.content}"
+    def __str__(self) -> str:
+        emb_status = "✅" if self.embedding else "❌"
+        return f"[{self.atom_type.upper()}] MemoryNote({self.id}) [Emb:{emb_status}]: {self.content}"
 
-    def __repr__(self) -> str: return f"MemoryNote(Type={self.atom_type}, ID={self.id})"
+    def __repr__(self) -> str:
+        return f"MemoryNote(Type={self.atom_type}, ID={self.id})"
 
     @abstractmethod
     def extra_info(self) -> str: pass
@@ -72,13 +81,8 @@ class MemoryManager:
         self.memory_store = {}
 
     def add_memory(self, memory: MemoryNote) -> str:
-        # 存入字典
         self.memory_store[memory.id] = memory
-
-        # 🔥 Debug 探针：查看当前到底存了多少个
-        # print(f"      [BaseDB] Stored ID={memory.id} | Store Size={len(self.memory_store)}")
-        # print(f"      [BaseDB Keys] {list(self.memory_store.keys())}")
-
+        # print(f"      [Manager] Added {memory.atom_type} (Emb: {len(memory.embedding) if memory.embedding else 0} dims)")
         return memory.id
 
     def get_memory(self, memory_id: str) -> Optional[MemoryNote]:
@@ -108,9 +112,10 @@ class HybridRetriever:
     def __init__(self, model_name: Optional[str] = None, alpha: float = 0.5):
         target_model = model_name or DEFAULT_MODEL_PATH
         if os.path.exists(target_model):
-            # print(f"[HybridRetriever] Loading local model from: {target_model}")
+            print(f"[HybridRetriever] Loading local model from: {target_model}")
             self.model = SentenceTransformer(target_model)
         else:
+            print(f"[Info] Downloading 'all-MiniLM-L6-v2'...")
             self.model = SentenceTransformer('all-MiniLM-L6-v2')
 
         self.alpha = alpha
@@ -156,10 +161,29 @@ class AgenticMemorySystem:
         self.retriever = HybridRetriever(model_name=model_name, alpha=alpha)
 
     def add_note(self, content: str, **kwargs):
+        """
+        添加记忆，并自动计算 Embedding
+        """
+        # 1. 计算 Embedding (利用 Retriever 里的模型)
+        embedding_list = None
+        try:
+            # model.encode 返回的是 numpy array，我们需要转成 list 以便 JSON 序列化
+            # encode([content])[0] 拿到第一个句子的向量
+            emb_vector = self.retriever.model.encode([content])[0]
+            embedding_list = emb_vector.tolist()
+        except Exception as e:
+            print(f"⚠️ [Embedding Error] Failed to generate embedding: {e}")
+
+        # 2. 将 embedding 放入 kwargs 传给 MemoryNote
+        kwargs['embedding'] = embedding_list
+
+        # 3. 创建并存储 Note
         note = ContentBasedMemoryNote(content=content, **kwargs)
         self.memory_manager.add_memory(note)
-        # 每次添加都刷新索引，确保能被检索到
+
+        # 4. 更新检索索引 (虽然这里又算了一遍，但在数据量不大时保证一致性最重要)
         self.consolidate_memories()
+
         return note.id
 
     def find_related_memories(self, query: str, k: int = 5):

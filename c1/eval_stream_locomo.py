@@ -41,7 +41,7 @@ from general.model import QwenGRPOChat
 # ================= 配置区 =================
 CONFIG_PATH = os.path.join(root_dir, "config", "llm_config.yaml")
 TEST_DATA_PATH = os.path.join(root_dir, "dataset", "locomo10.json")
-OUTPUT_MEM_PATH = os.path.join(root_dir, "c1", "output", "locomo_extracted_atoms.jsonl")
+OUTPUT_MEM_PATH = os.path.join(root_dir, "c1", "output", "locomo_extracted_atoms_no_embedding.jsonl")
 WINDOW_SIZE = 6
 
 
@@ -64,24 +64,23 @@ class LocomoStreamEvaluator:
 
     def get_all_current_memories(self):
         """
-        [最终修正版] 获取当前所有记忆，并序列化为包含元数据的字典
+        [最终修正版] 获取当前所有记忆，包含 Embedding
         """
         try:
             if hasattr(self.memory_sys, 'memory_manager'):
-                # 1. 获取所有 MemoryNote 对象
                 all_notes = self.memory_sys.memory_manager.get_all_memories()
 
-                # 2. 🔥 核心修改：不再只返回字符串，而是返回完整字典
                 serialized_memories = []
                 for note in all_notes:
                     serialized_memories.append({
                         "id": note.id,
                         "content": note.content,
-                        # 必须使用 getattr 以防旧对象没有该属性
                         "atom_type": getattr(note, 'atom_type', 'general'),
                         "timestamp": getattr(note, 'timestamp', 'unknown'),
-                        "source_text": getattr(note, 'source_text', ''),  # 如果 BaseMemory 存了的话
-                        "created_at": note.timestamp  # 记录入库时间
+                        "source_text": getattr(note, 'source_text', ''),
+                        "created_at": note.timestamp,
+                        # 🔥 新增：导出 Embedding (这会是一个 float 列表)
+                        "embedding": note.embedding
                     })
                 return serialized_memories
             else:

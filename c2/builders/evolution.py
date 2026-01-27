@@ -1,91 +1,51 @@
 # -*- coding: UTF-8 -*-
-"""
-@Project ：graduate 
-@File    ：evolution.py
-@Author  ：niu
-@Date    ：2026/1/8 13:25 
-@Desc    ：
-"""
-
 # c2/builders/evolution.py
-import sys
-import os
+import logging
 from typing import List
 
-# === 路径与配置导入 ===
-current_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.dirname(os.path.dirname(current_dir))
-sys.path.append(project_root)
+from c2.builders.base import BaseGraphBuilder
+from c2.definitions import EdgeType, MemoryNode
 
-# 导入配置
-try:
-    from ..config import CONFLICT_RETRIEVAL_WINDOW, DECAY_FACTOR, LLM_CONFIG_PATH
-except ImportError:
-    sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-    from config import CONFLICT_RETRIEVAL_WINDOW, DECAY_FACTOR, LLM_CONFIG_PATH
-
-# 导入 LLM
-try:
-    from general.model import ZhipuChat
-except ImportError:
-    from model import ZhipuChat
-
-from .base import BaseGraphBuilder
-from ..definitions import EdgeType, GraphNode
-from ..graph_storage import AtomGraph
-from ..prompts import CONFLICT_DETECTION_PROMPT
-
+logger = logging.getLogger(__name__)
 
 class EvolutionBuilder(BaseGraphBuilder):
     """
-    [Phase 2] 神经侧 (Neural Side) - 演化与冲突检测
-    职责:
-    1. 检测新记忆与旧记忆的冲突 (NLI)。
-    2. 如果冲突，建立 VERSION 边，并对旧节点降权 (Decay)。
+    [THESIS] Phase 2: 冲突检测与记忆演化
     """
+    def __init__(self, llm_client):
+        super().__init__()
+        self.llm = llm_client
+        self.decay_factor = 0.5
 
-    def __init__(self):
-        print(f"  [Evolution] Loading LLM for Conflict Detection...")
-        self.llm = ZhipuChat(LLM_CONFIG_PATH)
-
-    def process(self, new_nodes: List[GraphNode], graph: AtomGraph):
-        print("  [Evolution] 正在调用 LLM 进行冲突检测...")
-
+    def process(self, new_nodes: List[MemoryNode], graph):
         all_nodes = graph.get_all_nodes()
-
-        # 只与最近的 N 个节点比较 (由 config 控制窗口大小)
-        candidates = all_nodes[-CONFLICT_RETRIEVAL_WINDOW:] if len(all_nodes) > CONFLICT_RETRIEVAL_WINDOW else all_nodes
+        # [SIMPLIFIED] 只看最近的 10 个节点
+        recent_nodes = all_nodes[-10:]
 
         for new_node in new_nodes:
-            for old_node in candidates:
-                if new_node.id == old_node.id: continue
+            for old_node in recent_nodes:
+                if new_node.node_id == old_node.node_id: continue
+                # 只比较同类型
+                if new_node.node_type != old_node.node_type: continue
+                # 只比较 Profile (画像) 类，这类最容易冲突
+                if "profile" not in new_node.category.value: continue
 
-                # 调用 LLM 判断冲突
                 if self._detect_conflict(new_node.content, old_node.content):
-                    print(f"    ⚠️ [Conflict Detected] '{old_node.content[:15]}...' vs '{new_node.content[:15]}...'")
-
-                    # 1. 建立演化边: New -> Old (取代关系)
-                    graph.add_edge(new_node.id, old_node.id, EdgeType.VERSION)
-
-                    # 2. 降低旧节点的激活值 (由 config 控制系数)
-                    old_node.activation *= DECAY_FACTOR
+                    logger.info(f"    ⚔️ [Conflict] 冲突: '{new_node.content[:10]}' vs '{old_node.content[:10]}'")
+                    graph.add_edge(new_node.node_id, old_node.node_id, EdgeType.VERSION)
+                    old_node.energy_level *= self.decay_factor
 
     def _detect_conflict(self, text_a: str, text_b: str) -> bool:
+        if not self.llm: return False
+        prompt = f"""
+        判断以下两句话是否存在【事实冲突】？
+        1: {text_a}
+        2: {text_b}
+        冲突回答YES，否则NO。
         """
-        利用 LLM 进行 NLI (Natural Language Inference) 推理
-        """
-        prompt = CONFLICT_DETECTION_PROMPT.format(text_a=text_a, text_b=text_b)
-        messages = [{"role": "user", "content": prompt}]
-
         try:
-            result = self.llm.chat(messages)
-            # 解析结果：如果包含 "YES"，则认为冲突
-            if isinstance(result, dict):
-                content = result.get("content", "NO").upper()
-            else:
-                content = str(result).upper()
-
+            res = self.llm.chat([{"role": "user", "content": prompt}])
+            content = res.get("content", "").upper() if isinstance(res, dict) else str(res).upper()
             return "YES" in content
-        except Exception as e:
-            print(f"    [Evolution] Error: {e}")
+        except:
             return False
