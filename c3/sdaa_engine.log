@@ -1,0 +1,1000 @@
+[INFO] - === 启动 SDAA 联想激活引擎 (Cognitive Dynamics Engine) ===
+
+[INFO] - 场景上下文感知：发现 2 个当前活跃原子，作为势能注入种子节点。
+
+[INFO] - [Step 1] 双原子差异化势能建模开始...
+[DEBUG] - 节点注入：[EVENT_ACTIVITY_760] -> 初始势能 E0=1.9001 (intent_w=0.7)
+[DEBUG] - 节点注入：[EVENT_ACTIVITY_693] -> 初始势能 E0=3.7627 (turn_align=0.68)
+[INFO] - [Step 1] 势能注入完成，激活分布 A0 映射成功，能量重心已锁定。
+
+[INFO] - [Step 2] 神经符号门控扩散过程启动 (K=3 Steps)...
+
+[INFO] - >>> Diffusion Step 1:
+[DEBUG] - 沿边传播 [ℰ_coh]: EVENT_DIALOG_028 -> SCENE_204 ( transmission=0.73, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_ACTIVITY_460 -> SCENE_285 ( transmission=0.80, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_tem]: PROFILE_349 -> CONCEPT_ABSTRACT_160 ( transmission=0.35, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_PROFILE_390 -> EVENT_ACTIVITY_368 ( transmission=0.83, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_cau]: CONCEPT_PROFILE_748 -> PROFILE_550 ( transmission=0.28, gate=SOFT )
+[DEBUG] - 能量阻断：发现冲突边 [ℰ_decay], 阻止向过时节点 CONCEPT_PROFILE_634 传导。
+[INFO] - Step 1 完成：新增活跃节点 9 个，系统总能量：11.7247
+
+[INFO] - >>> Diffusion Step 2:
+[DEBUG] - 沿边传播 [ℰ_cau]: CONCEPT_PROFILE_876 -> EVENT_THOUGHT_888 ( transmission=0.26, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: CONCEPT_KNOWLEDGE_167 -> CONCEPT_ABSTRACT_364 ( transmission=0.34, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: EVENT_DIALOG_651 -> EVENT_THOUGHT_547 ( transmission=0.74, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: PROFILE_277 -> SCENE_225 ( transmission=0.71, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_tem]: CONCEPT_PROFILE_825 -> CONCEPT_ABSTRACT_411 ( transmission=0.39, gate=OPEN )
+[INFO] - Step 2 完成：新增活跃节点 9 个，系统总能量：14.9498
+
+[INFO] - >>> Diffusion Step 3 (最终步)
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_ACTIVITY_272 -> EVENT_THOUGHT_253 ( transmission=0.75, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_DIALOG_439 -> SCENE_409 ( transmission=0.46, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: PROFILE_094 -> EVENT_ACTIVITY_882 ( transmission=0.26, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_DIALOG_066 -> PROFILE_391 ( transmission=0.64, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_KNOWLEDGE_995 -> SCENE_882 ( transmission=0.91, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_KNOWLEDGE_788 -> CONCEPT_ABSTRACT_115 ( transmission=0.41, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: CONCEPT_PROFILE_977 -> CONCEPT_ABSTRACT_996 ( transmission=0.57, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_PROFILE_892 -> CONCEPT_ABSTRACT_862 ( transmission=0.67, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_tem]: EVENT_ACTIVITY_383 -> EVENT_THOUGHT_553 ( transmission=0.91, gate=CLOSED )
+[DEBUG] - 显式子图 𝒢_act 边界锁定。激活值 A_K > 0.72 的节点共 14 个。
+[INFO] - [Step 2] 显式联想扩散结束。显式候选集 𝒮_exp 准备就绪。
+
+[INFO] - [Step 3] 流形轨迹预测 (The Jump: Predicting Next Semantic Centroid)
+[DEBUG] - 语义重心计算：h_ctx = WeightedAgg(15 nodes in 𝒢_act).
+[DEBUG] - 轨迹外推：输入预测器 F_𝜃, 结合尺度 Δt=0.06, 计算下一时刻语义落点 h_next.
+[INFO] - 搜索探针发射：在全量记忆库 𝒱 中执行近似最近邻搜索 (ANN)...
+[INFO] - [DISCOVERY] 跳跃性联想成功：在图谱拓扑 3 跳之外召回 7 个高相关隐式节点。
+[DEBUG] - 隐式节点：[CONCEPT_ABSTRACT_750] ("研究兴趣更新") -> 相似度 0.9106
+[DEBUG] - 隐式节点：[EVENT_ACTIVITY_132] ("习惯性选择") -> 相似度 0.8560
+[DEBUG] - 隐式节点：[EVENT_ACTIVITY_272] ("家庭偏好") -> 相似度 0.9196
+[DEBUG] - 隐式节点：[CONCEPT_KNOWLEDGE_988] ("半年前的体检记录") -> 相似度 0.9286
+[DEBUG] - 隐式节点：[EVENT_ACTIVITY_731] ("项目进展记录") -> 相似度 0.8438
+[DEBUG] - 隐式节点：[PROFILE_449] ("家庭偏好") -> 相似度 0.8522
+[DEBUG] - 隐式节点：[EVENT_ACTIVITY_231] ("健康管理倾向") -> 相似度 0.8341
+[INFO] - [Step 3] 隐式候选集 𝒮_imp 注入完成。
+
+[INFO] - [Step 4] 熵减自适应剪枝 (Entropy-based Adaptive Pruning)
+[DEBUG] - 混合候选集构建：𝒞 = 𝒮_exp ∪ 𝒮_imp (共 27 个节点).
+[DEBUG] - 概率分布计算：计算所有候选节点归一化分布 p(v).
+[DEBUG] - 信息熵评估：当前系统认知熵 H(𝒞) = 0.4748 (Peaked Distribution).
+[INFO] - 策略触发：由于 H 值较高，系统处于“探索”状态，放宽预取窗口。
+[INFO] - 执行动态剪枝：依据 Peakedness 调整 Top-K=18.
+[DEBUG] - 滤除噪声节点：[EVENT_ACTIVITY_073], [EVENT_ACTIVITY_235] (能量过低/语义稀释).
+
+[INFO] - [Step 5] 最终输出与工作记忆加载...
+[INFO] - 预取子图 𝒢_next 生成完毕：包含 3 个概念锚点，7 个关键情景原子。
+[INFO] - 认知连续性校验：预取子图与当前 Context 的语义对齐度为 95.31%。
+[INFO] - === SDAA 联想激活周期完成，等待下一时刻感知输入 ===
+
+[INFO] - ------------------------------------------------------------
+
+[INFO] - 场景上下文感知：发现 2 个当前活跃原子，作为势能注入种子节点。
+
+[INFO] - [Step 1] 双原子差异化势能建模开始...
+[DEBUG] - 节点注入：[PROFILE_244] -> 初始势能 E0=1.9139 (Δt=0.61h, boost=0.1)
+[DEBUG] - 节点注入：[PROFILE_591] -> 初始势能 E0=2.6907 (Δt=2.04h, boost=0.13)
+[INFO] - [Step 1] 势能注入完成，激活分布 A0 映射成功，能量重心已锁定。
+
+[INFO] - [Step 2] 神经符号门控扩散过程启动 (K=2 Steps)...
+
+[INFO] - >>> Diffusion Step 1:
+[DEBUG] - 沿边传播 [ℰ_pref]: CONCEPT_PROFILE_690 -> EVENT_ACTIVITY_063 ( transmission=0.49, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: EVENT_ACTIVITY_197 -> EVENT_THOUGHT_550 ( transmission=0.53, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_tem]: CONCEPT_KNOWLEDGE_474 -> EVENT_THOUGHT_896 ( transmission=0.89, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_PROFILE_052 -> SCENE_857 ( transmission=0.19, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_tem]: EVENT_ACTIVITY_417 -> PROFILE_493 ( transmission=0.34, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_sem]: EVENT_ACTIVITY_389 -> EVENT_ACTIVITY_400 ( transmission=0.38, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_cau]: PROFILE_714 -> SCENE_678 ( transmission=0.73, gate=OPEN )
+[DEBUG] - 能量阻断：发现冲突边 [ℰ_conf], 阻止向过时节点 PROFILE_594 传导。
+[DEBUG] - 门控效应：EVENT_ACTIVITY_322 能量不足 (0.25 < firing_threshold=0.37), 无法向下游情景回溯。
+[INFO] - Step 1 完成：新增活跃节点 14 个，系统总能量：18.7915
+
+[INFO] - >>> Diffusion Step 2 (最终步)
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_PROFILE_872 -> EVENT_THOUGHT_071 ( transmission=0.64, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: CONCEPT_PROFILE_965 -> SCENE_253 ( transmission=0.63, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_PROFILE_430 -> SCENE_579 ( transmission=0.58, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_tem]: CONCEPT_KNOWLEDGE_245 -> CONCEPT_ABSTRACT_406 ( transmission=0.28, gate=OPEN )
+[DEBUG] - 显式子图 𝒢_act 边界锁定。激活值 A_K > 0.75 的节点共 11 个。
+[INFO] - [Step 2] 显式联想扩散结束。显式候选集 𝒮_exp 准备就绪。
+
+[INFO] - [Step 3] 流形轨迹预测 (The Jump: Predicting Next Semantic Centroid)
+[DEBUG] - 语义重心计算：h_ctx = WeightedAgg(20 nodes in 𝒢_act).
+[DEBUG] - 轨迹外推：输入预测器 F_𝜃, 结合尺度 Δt=0.08, 计算下一时刻语义落点 h_next.
+[INFO] - 搜索探针发射：在全量记忆库 𝒱 中执行近似最近邻搜索 (ANN)...
+[INFO] - [DISCOVERY] 跳跃性联想成功：在图谱拓扑 4 跳之外召回 5 个高相关隐式节点。
+[DEBUG] - 隐式节点：[PROFILE_903] ("健康管理倾向") -> 相似度 0.9207
+[DEBUG] - 隐式节点：[PROFILE_292] ("半年前的体检记录") -> 相似度 0.8501
+[DEBUG] - 隐式节点：[PROFILE_627] ("习惯性选择") -> 相似度 0.8646
+[DEBUG] - 隐式节点：[PROFILE_955] ("习惯性选择") -> 相似度 0.7966
+[DEBUG] - 隐式节点：[EVENT_ACTIVITY_271] ("健康管理倾向") -> 相似度 0.9224
+[INFO] - [Step 3] 隐式候选集 𝒮_imp 注入完成。
+
+[INFO] - [Step 4] 熵减自适应剪枝 (Entropy-based Adaptive Pruning)
+[DEBUG] - 混合候选集构建：𝒞 = 𝒮_exp ∪ 𝒮_imp (共 29 个节点).
+[DEBUG] - 概率分布计算：计算所有候选节点归一化分布 p(v).
+[DEBUG] - 信息熵评估：当前系统认知熵 H(𝒞) = 0.4745 (Peaked Distribution).
+[INFO] - 策略触发：由于 H 值较高，系统处于“探索”状态，放宽预取窗口。
+[INFO] - 执行动态剪枝：依据 Peakedness 调整 Top-K=16.
+[DEBUG] - 滤除噪声节点：[KNOWLEDGE_735], [PROFILE_209], [PROFILE_518] (能量过低/语义稀释).
+
+[INFO] - [Step 5] 最终输出与工作记忆加载...
+[INFO] - 预取子图 𝒢_next 生成完毕：包含 6 个概念锚点，9 个关键情景原子。
+[INFO] - 认知连续性校验：预取子图与当前 Context 的语义对齐度为 95.70%。
+[INFO] - === SDAA 联想激活周期完成，等待下一时刻感知输入 ===
+
+[INFO] - ------------------------------------------------------------
+
+[INFO] - 场景上下文感知：发现 2 个当前活跃原子，作为势能注入种子节点。
+
+[INFO] - [Step 1] 双原子差异化势能建模开始...
+[DEBUG] - 节点注入：[EVENT_ACTIVITY_650] -> 初始势能 E0=2.4943 (PageRank中心性=0.04, 稳态锚点)
+[DEBUG] - 节点注入：[CONCEPT_PROFILE_790] -> 初始势能 E0=1.3233 (PageRank中心性=0.06, 稳态锚点)
+[INFO] - [Step 1] 势能注入完成，激活分布 A0 映射成功，能量重心已锁定。
+
+[INFO] - [Step 2] 神经符号门控扩散过程启动 (K=3 Steps)...
+
+[INFO] - >>> Diffusion Step 1:
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_PROFILE_968 -> EVENT_THOUGHT_559 ( transmission=0.21, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: EVENT_DIALOG_152 -> PROFILE_131 ( transmission=0.21, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_KNOWLEDGE_216 -> EVENT_THOUGHT_683 ( transmission=0.26, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_DIALOG_768 -> EVENT_THOUGHT_948 ( transmission=0.90, gate=OPEN )
+[INFO] - Step 1 完成：新增活跃节点 6 个，系统总能量：14.9804
+
+[INFO] - >>> Diffusion Step 2:
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_ACTIVITY_274 -> EVENT_THOUGHT_807 ( transmission=0.72, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_sem]: PROFILE_228 -> EVENT_THOUGHT_837 ( transmission=0.89, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_ACTIVITY_229 -> EVENT_ACTIVITY_676 ( transmission=0.33, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: CONCEPT_PROFILE_991 -> CONCEPT_ABSTRACT_360 ( transmission=0.67, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_KNOWLEDGE_962 -> EVENT_ACTIVITY_119 ( transmission=0.86, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_tem]: EVENT_DIALOG_986 -> CONCEPT_ABSTRACT_040 ( transmission=0.26, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_cau]: CONCEPT_KNOWLEDGE_447 -> SCENE_524 ( transmission=0.27, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_tem]: CONCEPT_KNOWLEDGE_046 -> PROFILE_002 ( transmission=0.58, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_tem]: CONCEPT_KNOWLEDGE_442 -> EVENT_ACTIVITY_972 ( transmission=0.69, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_KNOWLEDGE_680 -> EVENT_ACTIVITY_738 ( transmission=0.87, gate=CLOSED )
+[DEBUG] - 能量阻断：发现冲突边 [ℰ_decay], 阻止向过时节点 EVENT_ACTIVITY_413 传导。
+[INFO] - Step 2 完成：新增活跃节点 9 个，系统总能量：17.3361
+
+[INFO] - >>> Diffusion Step 3 (最终步)
+[DEBUG] - 沿边传播 [ℰ_tem]: EVENT_DIALOG_583 -> CONCEPT_ABSTRACT_416 ( transmission=0.60, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: CONCEPT_KNOWLEDGE_216 -> PROFILE_805 ( transmission=0.63, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: PROFILE_453 -> EVENT_THOUGHT_524 ( transmission=0.54, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_KNOWLEDGE_528 -> SCENE_344 ( transmission=0.25, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_ACTIVITY_826 -> EVENT_THOUGHT_151 ( transmission=0.20, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_DIALOG_871 -> EVENT_ACTIVITY_467 ( transmission=0.50, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_tem]: PROFILE_507 -> PROFILE_250 ( transmission=0.29, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: PROFILE_225 -> EVENT_THOUGHT_824 ( transmission=0.92, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_pref]: CONCEPT_PROFILE_571 -> EVENT_THOUGHT_940 ( transmission=0.83, gate=SOFT )
+[DEBUG] - 能量阻断：发现冲突边 [ℰ_decay], 阻止向过时节点 CONCEPT_PROFILE_544 传导。
+[DEBUG] - 显式子图 𝒢_act 边界锁定。激活值 A_K > 0.65 的节点共 23 个。
+[INFO] - [Step 2] 显式联想扩散结束。显式候选集 𝒮_exp 准备就绪。
+
+[INFO] - [Step 3] 流形轨迹预测 (The Jump: Predicting Next Semantic Centroid)
+[DEBUG] - 语义重心计算：h_ctx = WeightedAgg(20 nodes in 𝒢_act).
+[DEBUG] - 轨迹外推：输入预测器 F_𝜃, 结合尺度 Δt=0.12, 计算下一时刻语义落点 h_next.
+[INFO] - 搜索探针发射：在全量记忆库 𝒱 中执行近似最近邻搜索 (ANN)...
+[INFO] - [DISCOVERY] 跳跃性联想成功：在图谱拓扑 6 跳之外召回 4 个高相关隐式节点。
+[DEBUG] - 隐式节点：[CONCEPT_KNOWLEDGE_266] ("半年前的体检记录") -> 相似度 0.9144
+[DEBUG] - 隐式节点：[PROFILE_785] ("家庭偏好") -> 相似度 0.8575
+[DEBUG] - 隐式节点：[EVENT_ACTIVITY_282] ("研究兴趣更新") -> 相似度 0.7924
+[DEBUG] - 隐式节点：[PROFILE_241] ("项目进展记录") -> 相似度 0.8337
+[INFO] - [Step 3] 隐式候选集 𝒮_imp 注入完成。
+
+[INFO] - [Step 4] 熵减自适应剪枝 (Entropy-based Adaptive Pruning)
+[DEBUG] - 混合候选集构建：𝒞 = 𝒮_exp ∪ 𝒮_imp (共 26 个节点).
+[DEBUG] - 概率分布计算：计算所有候选节点归一化分布 p(v).
+[DEBUG] - 信息熵评估：当前系统认知熵 H(𝒞) = 0.2571 (Peaked Distribution).
+[INFO] - 策略触发：由于 H 值较低，系统处于“高确信度”状态，收紧预取窗口。
+[INFO] - 执行动态剪枝：依据 Peakedness 调整 Top-K=11.
+[DEBUG] - 滤除噪声节点：[CONCEPT_ABSTRACT_711], [KNOWLEDGE_724] (能量过低/语义稀释).
+
+[INFO] - [Step 5] 最终输出与工作记忆加载...
+[INFO] - 预取子图 𝒢_next 生成完毕：包含 4 个概念锚点，7 个关键情景原子。
+[INFO] - 认知连续性校验：预取子图与当前 Context 的语义对齐度为 91.53%。
+[INFO] - === SDAA 联想激活周期完成，等待下一时刻感知输入 ===
+
+[INFO] - ------------------------------------------------------------
+
+[INFO] - 场景上下文感知：发现 4 个当前活跃原子，作为势能注入种子节点。
+
+[INFO] - [Step 1] 双原子差异化势能建模开始...
+[DEBUG] - 节点注入：[PROFILE_478] -> 初始势能 E0=2.4631 (intent_w=1.18)
+[DEBUG] - 节点注入：[CONCEPT_KNOWLEDGE_927] -> 初始势能 E0=3.8792 (affect=-0.19)
+[DEBUG] - 节点注入：[PROFILE_390] -> 初始势能 E0=2.7079 (PageRank中心性=0.09, 稳态锚点)
+[DEBUG] - 节点注入：[CONCEPT_KNOWLEDGE_874] -> 初始势能 E0=4.3666 (Δt=1.39h, boost=0.34)
+[INFO] - [Step 1] 势能注入完成，激活分布 A0 映射成功，能量重心已锁定。
+
+[INFO] - [Step 2] 神经符号门控扩散过程启动 (K=4 Steps)...
+
+[INFO] - >>> Diffusion Step 1:
+[DEBUG] - 沿边传播 [ℰ_pref]: PROFILE_030 -> PROFILE_345 ( transmission=0.70, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_tem]: PROFILE_942 -> EVENT_THOUGHT_638 ( transmission=0.59, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_coh]: EVENT_DIALOG_679 -> EVENT_ACTIVITY_086 ( transmission=0.67, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_ACTIVITY_052 -> CONCEPT_ABSTRACT_389 ( transmission=0.43, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_cau]: CONCEPT_KNOWLEDGE_780 -> PROFILE_285 ( transmission=0.76, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_cau]: CONCEPT_PROFILE_482 -> EVENT_ACTIVITY_768 ( transmission=0.60, gate=OPEN )
+[DEBUG] - 能量阻断：发现冲突边 [ℰ_conf], 阻止向过时节点 CONCEPT_PROFILE_042 传导。
+[INFO] - Step 1 完成：新增活跃节点 9 个，系统总能量：20.8832
+
+[INFO] - >>> Diffusion Step 2:
+[DEBUG] - 沿边传播 [ℰ_tem]: PROFILE_686 -> EVENT_ACTIVITY_578 ( transmission=0.91, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_cau]: CONCEPT_KNOWLEDGE_172 -> SCENE_622 ( transmission=0.92, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_tem]: CONCEPT_KNOWLEDGE_111 -> SCENE_027 ( transmission=0.90, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_pref]: PROFILE_965 -> EVENT_THOUGHT_078 ( transmission=0.64, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_KNOWLEDGE_871 -> SCENE_825 ( transmission=0.27, gate=CLOSED )
+[DEBUG] - 路径触发：CONCEPT_KNOWLEDGE_439 ("课程内容") 被共振激活。
+[INFO] - Step 2 完成：新增活跃节点 14 个，系统总能量：24.0791
+
+[INFO] - >>> Diffusion Step 3:
+[DEBUG] - 沿边传播 [ℰ_pref]: CONCEPT_PROFILE_444 -> CONCEPT_ABSTRACT_651 ( transmission=0.87, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_tem]: PROFILE_181 -> SCENE_989 ( transmission=0.68, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_coh]: PROFILE_477 -> PROFILE_846 ( transmission=0.74, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_ACTIVITY_851 -> EVENT_ACTIVITY_286 ( transmission=0.86, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_DIALOG_625 -> PROFILE_345 ( transmission=0.20, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_tem]: PROFILE_218 -> CONCEPT_ABSTRACT_817 ( transmission=0.38, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_KNOWLEDGE_570 -> EVENT_ACTIVITY_530 ( transmission=0.91, gate=OPEN )
+[DEBUG] - 能量阻断：发现冲突边 [ℰ_decay], 阻止向过时节点 EVENT_ACTIVITY_569 传导。
+[INFO] - Step 3 完成：新增活跃节点 16 个，系统总能量：27.5129
+
+[INFO] - >>> Diffusion Step 4 (最终步)
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_KNOWLEDGE_227 -> PROFILE_709 ( transmission=0.37, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_cau]: PROFILE_567 -> SCENE_353 ( transmission=0.51, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_cau]: CONCEPT_KNOWLEDGE_720 -> PROFILE_278 ( transmission=0.42, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: EVENT_ACTIVITY_324 -> EVENT_ACTIVITY_761 ( transmission=0.59, gate=OPEN )
+[DEBUG] - 能量阻断：发现冲突边 [ℰ_noise], 阻止向过时节点 EVENT_ACTIVITY_284 传导。
+[DEBUG] - 显式子图 𝒢_act 边界锁定。激活值 A_K > 0.72 的节点共 14 个。
+[INFO] - [Step 2] 显式联想扩散结束。显式候选集 𝒮_exp 准备就绪。
+
+[INFO] - [Step 3] 流形轨迹预测 (The Jump: Predicting Next Semantic Centroid)
+[DEBUG] - 语义重心计算：h_ctx = WeightedAgg(15 nodes in 𝒢_act).
+[DEBUG] - 轨迹外推：输入预测器 F_𝜃, 结合尺度 Δt=0.1, 计算下一时刻语义落点 h_next.
+[INFO] - 搜索探针发射：在全量记忆库 𝒱 中执行近似最近邻搜索 (ANN)...
+[INFO] - [DISCOVERY] 跳跃性联想成功：在图谱拓扑 3 跳之外召回 5 个高相关隐式节点。
+[DEBUG] - 隐式节点：[EVENT_ACTIVITY_281] ("健康管理倾向") -> 相似度 0.9359
+[DEBUG] - 隐式节点：[PROFILE_715] ("半年前的体检记录") -> 相似度 0.8821
+[DEBUG] - 隐式节点：[CONCEPT_KNOWLEDGE_106] ("健康管理倾向") -> 相似度 0.8719
+[DEBUG] - 隐式节点：[CONCEPT_KNOWLEDGE_491] ("研究兴趣更新") -> 相似度 0.8345
+[DEBUG] - 隐式节点：[CONCEPT_ABSTRACT_259] ("研究兴趣更新") -> 相似度 0.7983
+[INFO] - [Step 3] 隐式候选集 𝒮_imp 注入完成。
+
+[INFO] - [Step 4] 熵减自适应剪枝 (Entropy-based Adaptive Pruning)
+[DEBUG] - 混合候选集构建：𝒞 = 𝒮_exp ∪ 𝒮_imp (共 19 个节点).
+[DEBUG] - 概率分布计算：计算所有候选节点归一化分布 p(v).
+[DEBUG] - 信息熵评估：当前系统认知熵 H(𝒞) = 0.4043 (Peaked Distribution).
+[INFO] - 策略触发：由于 H 值较低，系统处于“高确信度”状态，收紧预取窗口。
+[INFO] - 执行动态剪枝：依据 Peakedness 调整 Top-K=10.
+[DEBUG] - 滤除噪声节点：[KNOWLEDGE_153] (能量过低/语义稀释).
+
+[INFO] - [Step 5] 最终输出与工作记忆加载...
+[INFO] - 预取子图 𝒢_next 生成完毕：包含 5 个概念锚点，7 个关键情景原子。
+[INFO] - 认知连续性校验：预取子图与当前 Context 的语义对齐度为 96.45%。
+[INFO] - === SDAA 联想激活周期完成，等待下一时刻感知输入 ===
+
+[INFO] - ------------------------------------------------------------
+
+[INFO] - 场景上下文感知：发现 2 个当前活跃原子，作为势能注入种子节点。
+
+[INFO] - [Step 1] 双原子差异化势能建模开始...
+[DEBUG] - 节点注入：[PROFILE_783] -> 初始势能 E0=2.4647 (turn_align=0.91)
+[DEBUG] - 节点注入：[EVENT_THOUGHT_795] -> 初始势能 E0=2.8903 (Δt=2.28h, boost=0.17)
+[INFO] - [Step 1] 势能注入完成，激活分布 A0 映射成功，能量重心已锁定。
+
+[INFO] - [Step 2] 神经符号门控扩散过程启动 (K=4 Steps)...
+
+[INFO] - >>> Diffusion Step 1:
+[DEBUG] - 沿边传播 [ℰ_sem]: EVENT_DIALOG_984 -> EVENT_ACTIVITY_971 ( transmission=0.77, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: CONCEPT_PROFILE_161 -> EVENT_THOUGHT_178 ( transmission=0.61, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: PROFILE_462 -> SCENE_482 ( transmission=0.40, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: CONCEPT_KNOWLEDGE_720 -> PROFILE_073 ( transmission=0.71, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: EVENT_ACTIVITY_436 -> EVENT_ACTIVITY_558 ( transmission=0.35, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_ACTIVITY_074 -> EVENT_ACTIVITY_170 ( transmission=0.79, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_KNOWLEDGE_450 -> EVENT_ACTIVITY_480 ( transmission=0.71, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_DIALOG_553 -> PROFILE_449 ( transmission=0.24, gate=OPEN )
+[INFO] - Step 1 完成：新增活跃节点 6 个，系统总能量：19.0382
+
+[INFO] - >>> Diffusion Step 2:
+[DEBUG] - 沿边传播 [ℰ_coh]: EVENT_DIALOG_974 -> EVENT_ACTIVITY_784 ( transmission=0.70, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_PROFILE_782 -> EVENT_THOUGHT_482 ( transmission=0.58, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_ACTIVITY_600 -> PROFILE_651 ( transmission=0.81, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: CONCEPT_KNOWLEDGE_419 -> CONCEPT_ABSTRACT_329 ( transmission=0.70, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: PROFILE_711 -> PROFILE_296 ( transmission=0.69, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_PROFILE_466 -> EVENT_ACTIVITY_323 ( transmission=0.37, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_DIALOG_845 -> EVENT_ACTIVITY_674 ( transmission=0.85, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_pref]: CONCEPT_PROFILE_193 -> SCENE_371 ( transmission=0.66, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_pref]: CONCEPT_PROFILE_209 -> CONCEPT_ABSTRACT_563 ( transmission=0.28, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: PROFILE_125 -> EVENT_ACTIVITY_997 ( transmission=0.67, gate=OPEN )
+[DEBUG] - 路径触发：CONCEPT_KNOWLEDGE_015 ("健康管理倾向") 被共振激活。
+[INFO] - Step 2 完成：新增活跃节点 9 个，系统总能量：23.5096
+
+[INFO] - >>> Diffusion Step 3:
+[DEBUG] - 沿边传播 [ℰ_sem]: EVENT_ACTIVITY_511 -> CONCEPT_ABSTRACT_522 ( transmission=0.72, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_pref]: PROFILE_250 -> PROFILE_565 ( transmission=0.29, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: EVENT_DIALOG_765 -> EVENT_THOUGHT_885 ( transmission=0.23, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_DIALOG_274 -> EVENT_ACTIVITY_290 ( transmission=0.74, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_coh]: PROFILE_887 -> EVENT_THOUGHT_458 ( transmission=0.59, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_DIALOG_782 -> SCENE_387 ( transmission=0.53, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_tem]: EVENT_ACTIVITY_586 -> PROFILE_240 ( transmission=0.84, gate=SOFT )
+[DEBUG] - 能量阻断：发现冲突边 [ℰ_noise], 阻止向过时节点 EVENT_ACTIVITY_723 传导。
+[INFO] - Step 3 完成：新增活跃节点 16 个，系统总能量：27.2415
+
+[INFO] - >>> Diffusion Step 4 (最终步)
+[DEBUG] - 沿边传播 [ℰ_pref]: CONCEPT_PROFILE_130 -> SCENE_989 ( transmission=0.63, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: CONCEPT_PROFILE_539 -> PROFILE_016 ( transmission=0.74, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_tem]: CONCEPT_PROFILE_481 -> CONCEPT_ABSTRACT_347 ( transmission=0.66, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_KNOWLEDGE_873 -> SCENE_390 ( transmission=0.91, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_PROFILE_633 -> EVENT_ACTIVITY_241 ( transmission=0.67, gate=OPEN )
+[DEBUG] - 显式子图 𝒢_act 边界锁定。激活值 A_K > 0.57 的节点共 12 个。
+[INFO] - [Step 2] 显式联想扩散结束。显式候选集 𝒮_exp 准备就绪。
+
+[INFO] - [Step 3] 流形轨迹预测 (The Jump: Predicting Next Semantic Centroid)
+[DEBUG] - 语义重心计算：h_ctx = WeightedAgg(16 nodes in 𝒢_act).
+[DEBUG] - 轨迹外推：输入预测器 F_𝜃, 结合尺度 Δt=0.19, 计算下一时刻语义落点 h_next.
+[INFO] - 搜索探针发射：在全量记忆库 𝒱 中执行近似最近邻搜索 (ANN)...
+[INFO] - [DISCOVERY] 跳跃性联想成功：在图谱拓扑 5 跳之外召回 3 个高相关隐式节点。
+[DEBUG] - 隐式节点：[CONCEPT_ABSTRACT_301] ("项目进展记录") -> 相似度 0.8400
+[DEBUG] - 隐式节点：[EVENT_ACTIVITY_251] ("家庭偏好") -> 相似度 0.8459
+[DEBUG] - 隐式节点：[EVENT_ACTIVITY_175] ("半年前的体检记录") -> 相似度 0.7926
+[INFO] - [Step 3] 隐式候选集 𝒮_imp 注入完成。
+
+[INFO] - [Step 4] 熵减自适应剪枝 (Entropy-based Adaptive Pruning)
+[DEBUG] - 混合候选集构建：𝒞 = 𝒮_exp ∪ 𝒮_imp (共 24 个节点).
+[DEBUG] - 概率分布计算：计算所有候选节点归一化分布 p(v).
+[DEBUG] - 信息熵评估：当前系统认知熵 H(𝒞) = 0.5051 (Peaked Distribution).
+[INFO] - 策略触发：由于 H 值较高，系统处于“探索”状态，放宽预取窗口。
+[INFO] - 执行动态剪枝：依据 Peakedness 调整 Top-K=15.
+[DEBUG] - 滤除噪声节点：[KNOWLEDGE_238], [CONCEPT_ABSTRACT_654], [PROFILE_471], [PROFILE_683] (能量过低/语义稀释).
+
+[INFO] - [Step 5] 最终输出与工作记忆加载...
+[INFO] - 预取子图 𝒢_next 生成完毕：包含 3 个概念锚点，10 个关键情景原子。
+[INFO] - 认知连续性校验：预取子图与当前 Context 的语义对齐度为 95.66%。
+[INFO] - === SDAA 联想激活周期完成，等待下一时刻感知输入 ===
+
+[INFO] - ------------------------------------------------------------
+
+[INFO] - 场景上下文感知：发现 6 个当前活跃原子，作为势能注入种子节点。
+
+[INFO] - [Step 1] 双原子差异化势能建模开始...
+[DEBUG] - 节点注入：[EVENT_THOUGHT_076] -> 初始势能 E0=2.5669 (PageRank中心性=0.22, 稳态锚点)
+[DEBUG] - 节点注入：[CONCEPT_PROFILE_655] -> 初始势能 E0=4.6481 (affect=-0.06)
+[DEBUG] - 节点注入：[CONCEPT_PROFILE_204] -> 初始势能 E0=4.7975 (Δt=0.36h, boost=0.2)
+[DEBUG] - 节点注入：[CONCEPT_PROFILE_589] -> 初始势能 E0=1.9835 (affect=-0.04)
+[DEBUG] - 节点注入：[EVENT_DIALOG_406] -> 初始势能 E0=1.8979 (turn_align=0.94)
+[DEBUG] - 节点注入：[EVENT_DIALOG_997] -> 初始势能 E0=0.9962 (turn_align=0.9)
+[INFO] - [Step 1] 势能注入完成，激活分布 A0 映射成功，能量重心已锁定。
+
+[INFO] - [Step 2] 神经符号门控扩散过程启动 (K=3 Steps)...
+
+[INFO] - >>> Diffusion Step 1:
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_ACTIVITY_652 -> EVENT_THOUGHT_636 ( transmission=0.37, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_PROFILE_317 -> PROFILE_035 ( transmission=0.63, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_KNOWLEDGE_335 -> PROFILE_180 ( transmission=0.33, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_DIALOG_514 -> CONCEPT_ABSTRACT_851 ( transmission=0.31, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_cau]: CONCEPT_KNOWLEDGE_824 -> EVENT_ACTIVITY_480 ( transmission=0.92, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_tem]: PROFILE_991 -> SCENE_375 ( transmission=0.25, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_KNOWLEDGE_550 -> EVENT_ACTIVITY_466 ( transmission=0.46, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: PROFILE_843 -> CONCEPT_ABSTRACT_111 ( transmission=0.70, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_sem]: EVENT_DIALOG_906 -> SCENE_336 ( transmission=0.88, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: PROFILE_932 -> CONCEPT_ABSTRACT_665 ( transmission=0.49, gate=OPEN )
+[DEBUG] - 能量阻断：发现冲突边 [ℰ_conf], 阻止向过时节点 EVENT_ACTIVITY_505 传导。
+[DEBUG] - 路径触发：CONCEPT_KNOWLEDGE_241 ("健康管理倾向") 被共振激活。
+[DEBUG] - 门控效应：EVENT_ACTIVITY_465 能量不足 (0.43 < firing_threshold=0.46), 无法向下游情景回溯。
+[INFO] - Step 1 完成：新增活跃节点 14 个，系统总能量：18.1082
+
+[INFO] - >>> Diffusion Step 2:
+[DEBUG] - 沿边传播 [ℰ_pref]: CONCEPT_PROFILE_854 -> PROFILE_631 ( transmission=0.49, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_KNOWLEDGE_223 -> PROFILE_456 ( transmission=0.91, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_KNOWLEDGE_558 -> CONCEPT_ABSTRACT_063 ( transmission=0.49, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: PROFILE_094 -> EVENT_THOUGHT_658 ( transmission=0.67, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_KNOWLEDGE_250 -> EVENT_THOUGHT_806 ( transmission=0.61, gate=OPEN )
+[INFO] - Step 2 完成：新增活跃节点 9 个，系统总能量：20.1239
+
+[INFO] - >>> Diffusion Step 3 (最终步)
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_KNOWLEDGE_880 -> EVENT_THOUGHT_134 ( transmission=0.60, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_PROFILE_135 -> EVENT_ACTIVITY_367 ( transmission=0.79, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_KNOWLEDGE_017 -> EVENT_THOUGHT_272 ( transmission=0.22, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_PROFILE_764 -> EVENT_ACTIVITY_488 ( transmission=0.53, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: EVENT_DIALOG_112 -> PROFILE_516 ( transmission=0.35, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_sem]: EVENT_DIALOG_309 -> PROFILE_659 ( transmission=0.92, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: PROFILE_437 -> EVENT_ACTIVITY_503 ( transmission=0.73, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_PROFILE_330 -> SCENE_152 ( transmission=0.23, gate=OPEN )
+[DEBUG] - 显式子图 𝒢_act 边界锁定。激活值 A_K > 0.64 的节点共 19 个。
+[INFO] - [Step 2] 显式联想扩散结束。显式候选集 𝒮_exp 准备就绪。
+
+[INFO] - [Step 3] 流形轨迹预测 (The Jump: Predicting Next Semantic Centroid)
+[DEBUG] - 语义重心计算：h_ctx = WeightedAgg(18 nodes in 𝒢_act).
+[DEBUG] - 轨迹外推：输入预测器 F_𝜃, 结合尺度 Δt=0.06, 计算下一时刻语义落点 h_next.
+[INFO] - 搜索探针发射：在全量记忆库 𝒱 中执行近似最近邻搜索 (ANN)...
+[INFO] - [DISCOVERY] 跳跃性联想成功：在图谱拓扑 4 跳之外召回 3 个高相关隐式节点。
+[DEBUG] - 隐式节点：[CONCEPT_KNOWLEDGE_463] ("半年前的体检记录") -> 相似度 0.8462
+[DEBUG] - 隐式节点：[CONCEPT_KNOWLEDGE_409] ("研究兴趣更新") -> 相似度 0.8967
+[DEBUG] - 隐式节点：[PROFILE_438] ("项目进展记录") -> 相似度 0.8864
+[INFO] - [Step 3] 隐式候选集 𝒮_imp 注入完成。
+
+[INFO] - [Step 4] 熵减自适应剪枝 (Entropy-based Adaptive Pruning)
+[DEBUG] - 混合候选集构建：𝒞 = 𝒮_exp ∪ 𝒮_imp (共 23 个节点).
+[DEBUG] - 概率分布计算：计算所有候选节点归一化分布 p(v).
+[DEBUG] - 信息熵评估：当前系统认知熵 H(𝒞) = 0.6587 (Peaked Distribution).
+[INFO] - 策略触发：由于 H 值较高，系统处于“探索”状态，放宽预取窗口。
+[INFO] - 执行动态剪枝：依据 Peakedness 调整 Top-K=17.
+[DEBUG] - 滤除噪声节点：[EVENT_ACTIVITY_852] (能量过低/语义稀释).
+
+[INFO] - [Step 5] 最终输出与工作记忆加载...
+[INFO] - 预取子图 𝒢_next 生成完毕：包含 3 个概念锚点，7 个关键情景原子。
+[INFO] - 认知连续性校验：预取子图与当前 Context 的语义对齐度为 91.67%。
+[INFO] - === SDAA 联想激活周期完成，等待下一时刻感知输入 ===
+
+[INFO] - ------------------------------------------------------------
+
+[INFO] - 场景上下文感知：发现 4 个当前活跃原子，作为势能注入种子节点。
+
+[INFO] - [Step 1] 双原子差异化势能建模开始...
+[DEBUG] - 节点注入：[EVENT_THOUGHT_570] -> 初始势能 E0=1.0399 (turn_align=0.84)
+[DEBUG] - 节点注入：[EVENT_DIALOG_126] -> 初始势能 E0=2.4432 (affect=0.32)
+[DEBUG] - 节点注入：[CONCEPT_KNOWLEDGE_889] -> 初始势能 E0=4.4634 (逻辑惊奇度=0.94, 时间衰减=0.87)
+[DEBUG] - 节点注入：[CONCEPT_PROFILE_107] -> 初始势能 E0=3.1117 (intent_w=0.71)
+[INFO] - [Step 1] 势能注入完成，激活分布 A0 映射成功，能量重心已锁定。
+
+[INFO] - [Step 2] 神经符号门控扩散过程启动 (K=3 Steps)...
+
+[INFO] - >>> Diffusion Step 1:
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_KNOWLEDGE_118 -> CONCEPT_ABSTRACT_588 ( transmission=0.35, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_coh]: EVENT_DIALOG_629 -> SCENE_027 ( transmission=0.65, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: EVENT_ACTIVITY_280 -> CONCEPT_ABSTRACT_944 ( transmission=0.44, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_tem]: EVENT_ACTIVITY_580 -> PROFILE_072 ( transmission=0.29, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: EVENT_DIALOG_221 -> PROFILE_430 ( transmission=0.53, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: CONCEPT_KNOWLEDGE_739 -> CONCEPT_ABSTRACT_796 ( transmission=0.90, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_PROFILE_160 -> EVENT_THOUGHT_773 ( transmission=0.66, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: PROFILE_678 -> PROFILE_498 ( transmission=0.65, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_ACTIVITY_774 -> SCENE_117 ( transmission=0.45, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_DIALOG_499 -> SCENE_684 ( transmission=0.42, gate=OPEN )
+[DEBUG] - 能量阻断：发现冲突边 [ℰ_noise], 阻止向过时节点 PROFILE_008 传导。
+[DEBUG] - 路径触发：CONCEPT_KNOWLEDGE_969 ("长期偏好") 被共振激活。
+[INFO] - Step 1 完成：新增活跃节点 10 个，系统总能量：12.1134
+
+[INFO] - >>> Diffusion Step 2:
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_ACTIVITY_133 -> PROFILE_546 ( transmission=0.72, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_KNOWLEDGE_074 -> PROFILE_883 ( transmission=0.75, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_sem]: PROFILE_944 -> EVENT_ACTIVITY_883 ( transmission=0.42, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_coh]: PROFILE_727 -> PROFILE_297 ( transmission=0.27, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_ACTIVITY_821 -> SCENE_472 ( transmission=0.82, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: PROFILE_865 -> EVENT_ACTIVITY_250 ( transmission=0.52, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_PROFILE_406 -> CONCEPT_ABSTRACT_764 ( transmission=0.44, gate=OPEN )
+[DEBUG] - 路径触发：CONCEPT_KNOWLEDGE_649 ("川菜常识") 被共振激活。
+[INFO] - Step 2 完成：新增活跃节点 9 个，系统总能量：16.2653
+
+[INFO] - >>> Diffusion Step 3 (最终步)
+[DEBUG] - 沿边传播 [ℰ_tem]: EVENT_ACTIVITY_106 -> EVENT_THOUGHT_263 ( transmission=0.33, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_tem]: CONCEPT_PROFILE_182 -> PROFILE_476 ( transmission=0.76, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_DIALOG_659 -> SCENE_331 ( transmission=0.85, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_tem]: PROFILE_070 -> PROFILE_453 ( transmission=0.67, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_PROFILE_361 -> SCENE_076 ( transmission=0.42, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_PROFILE_378 -> CONCEPT_ABSTRACT_079 ( transmission=0.68, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: EVENT_DIALOG_520 -> PROFILE_474 ( transmission=0.63, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_DIALOG_668 -> EVENT_THOUGHT_330 ( transmission=0.65, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_tem]: CONCEPT_PROFILE_462 -> EVENT_ACTIVITY_831 ( transmission=0.87, gate=OPEN )
+[DEBUG] - 路径触发：CONCEPT_KNOWLEDGE_662 ("长期偏好") 被共振激活。
+[DEBUG] - 门控效应：EVENT_ACTIVITY_725 能量不足 (0.26 < firing_threshold=0.48), 无法向下游情景回溯。
+[DEBUG] - 显式子图 𝒢_act 边界锁定。激活值 A_K > 0.73 的节点共 16 个。
+[INFO] - [Step 2] 显式联想扩散结束。显式候选集 𝒮_exp 准备就绪。
+
+[INFO] - [Step 3] 流形轨迹预测 (The Jump: Predicting Next Semantic Centroid)
+[DEBUG] - 语义重心计算：h_ctx = WeightedAgg(18 nodes in 𝒢_act).
+[DEBUG] - 轨迹外推：输入预测器 F_𝜃, 结合尺度 Δt=0.17, 计算下一时刻语义落点 h_next.
+[INFO] - 搜索探针发射：在全量记忆库 𝒱 中执行近似最近邻搜索 (ANN)...
+[INFO] - [DISCOVERY] 跳跃性联想成功：在图谱拓扑 3 跳之外召回 7 个高相关隐式节点。
+[DEBUG] - 隐式节点：[PROFILE_068] ("项目进展记录") -> 相似度 0.7951
+[DEBUG] - 隐式节点：[CONCEPT_KNOWLEDGE_291] ("项目进展记录") -> 相似度 0.8958
+[DEBUG] - 隐式节点：[EVENT_ACTIVITY_342] ("健康管理倾向") -> 相似度 0.8732
+[DEBUG] - 隐式节点：[EVENT_ACTIVITY_939] ("项目进展记录") -> 相似度 0.8296
+[DEBUG] - 隐式节点：[CONCEPT_KNOWLEDGE_133] ("家庭偏好") -> 相似度 0.8934
+[DEBUG] - 隐式节点：[CONCEPT_ABSTRACT_318] ("家庭偏好") -> 相似度 0.8403
+[DEBUG] - 隐式节点：[PROFILE_833] ("半年前的体检记录") -> 相似度 0.8872
+[INFO] - [Step 3] 隐式候选集 𝒮_imp 注入完成。
+
+[INFO] - [Step 4] 熵减自适应剪枝 (Entropy-based Adaptive Pruning)
+[DEBUG] - 混合候选集构建：𝒞 = 𝒮_exp ∪ 𝒮_imp (共 29 个节点).
+[DEBUG] - 概率分布计算：计算所有候选节点归一化分布 p(v).
+[DEBUG] - 信息熵评估：当前系统认知熵 H(𝒞) = 0.6787 (Peaked Distribution).
+[INFO] - 策略触发：由于 H 值较高，系统处于“探索”状态，放宽预取窗口。
+[INFO] - 执行动态剪枝：依据 Peakedness 调整 Top-K=18.
+[DEBUG] - 滤除噪声节点：[CONCEPT_ABSTRACT_521] (能量过低/语义稀释).
+
+[INFO] - [Step 5] 最终输出与工作记忆加载...
+[INFO] - 预取子图 𝒢_next 生成完毕：包含 5 个概念锚点，7 个关键情景原子。
+[INFO] - 认知连续性校验：预取子图与当前 Context 的语义对齐度为 91.08%。
+[INFO] - === SDAA 联想激活周期完成，等待下一时刻感知输入 ===
+
+[INFO] - ------------------------------------------------------------
+
+[INFO] - 场景上下文感知：发现 3 个当前活跃原子，作为势能注入种子节点。
+
+[INFO] - [Step 1] 双原子差异化势能建模开始...
+[DEBUG] - 节点注入：[EVENT_THOUGHT_350] -> 初始势能 E0=4.5907 (Δt=0.56h, boost=0.45)
+[DEBUG] - 节点注入：[EVENT_THOUGHT_080] -> 初始势能 E0=1.9832 (逻辑惊奇度=0.75, 时间衰减=0.85)
+[DEBUG] - 节点注入：[EVENT_DIALOG_905] -> 初始势能 E0=2.9061 (affect=-0.01)
+[INFO] - [Step 1] 势能注入完成，激活分布 A0 映射成功，能量重心已锁定。
+
+[INFO] - [Step 2] 神经符号门控扩散过程启动 (K=4 Steps)...
+
+[INFO] - >>> Diffusion Step 1:
+[DEBUG] - 沿边传播 [ℰ_tem]: EVENT_DIALOG_829 -> EVENT_THOUGHT_739 ( transmission=0.52, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_ACTIVITY_993 -> PROFILE_626 ( transmission=0.40, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_tem]: EVENT_DIALOG_245 -> CONCEPT_ABSTRACT_989 ( transmission=0.80, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_tem]: CONCEPT_KNOWLEDGE_695 -> SCENE_452 ( transmission=0.54, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_DIALOG_541 -> PROFILE_990 ( transmission=0.30, gate=OPEN )
+[DEBUG] - 路径触发：CONCEPT_KNOWLEDGE_257 ("川菜常识") 被共振激活。
+[INFO] - Step 1 完成：新增活跃节点 11 个，系统总能量：12.1623
+
+[INFO] - >>> Diffusion Step 2:
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_PROFILE_292 -> EVENT_ACTIVITY_782 ( transmission=0.30, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_coh]: EVENT_ACTIVITY_851 -> PROFILE_094 ( transmission=0.91, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: CONCEPT_KNOWLEDGE_953 -> EVENT_ACTIVITY_425 ( transmission=0.22, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_ACTIVITY_396 -> EVENT_ACTIVITY_384 ( transmission=0.35, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_KNOWLEDGE_811 -> EVENT_THOUGHT_141 ( transmission=0.21, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_tem]: PROFILE_460 -> SCENE_006 ( transmission=0.88, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_ACTIVITY_856 -> EVENT_THOUGHT_562 ( transmission=0.90, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_coh]: PROFILE_114 -> CONCEPT_ABSTRACT_244 ( transmission=0.41, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_tem]: PROFILE_655 -> SCENE_469 ( transmission=0.23, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_coh]: EVENT_DIALOG_017 -> SCENE_589 ( transmission=0.37, gate=OPEN )
+[DEBUG] - 能量阻断：发现冲突边 [ℰ_conf], 阻止向过时节点 CONCEPT_PROFILE_362 传导。
+[DEBUG] - 路径触发：CONCEPT_KNOWLEDGE_427 ("长期偏好") 被共振激活。
+[INFO] - Step 2 完成：新增活跃节点 7 个，系统总能量：14.8992
+
+[INFO] - >>> Diffusion Step 3:
+[DEBUG] - 沿边传播 [ℰ_coh]: EVENT_DIALOG_806 -> SCENE_568 ( transmission=0.20, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_sem]: PROFILE_383 -> CONCEPT_ABSTRACT_766 ( transmission=0.19, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_ACTIVITY_751 -> EVENT_ACTIVITY_791 ( transmission=0.63, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_tem]: CONCEPT_PROFILE_361 -> SCENE_347 ( transmission=0.81, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: PROFILE_647 -> EVENT_THOUGHT_831 ( transmission=0.28, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_KNOWLEDGE_207 -> EVENT_ACTIVITY_811 ( transmission=0.33, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: CONCEPT_KNOWLEDGE_528 -> PROFILE_835 ( transmission=0.60, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: EVENT_ACTIVITY_293 -> CONCEPT_ABSTRACT_883 ( transmission=0.78, gate=OPEN )
+[DEBUG] - 能量阻断：发现冲突边 [ℰ_decay], 阻止向过时节点 EVENT_ACTIVITY_911 传导。
+[INFO] - Step 3 完成：新增活跃节点 12 个，系统总能量：16.9536
+
+[INFO] - >>> Diffusion Step 4 (最终步)
+[DEBUG] - 沿边传播 [ℰ_pref]: CONCEPT_KNOWLEDGE_947 -> SCENE_274 ( transmission=0.80, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_sem]: PROFILE_617 -> EVENT_THOUGHT_559 ( transmission=0.41, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_KNOWLEDGE_677 -> CONCEPT_ABSTRACT_314 ( transmission=0.52, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_tem]: PROFILE_360 -> PROFILE_044 ( transmission=0.74, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: PROFILE_282 -> EVENT_ACTIVITY_077 ( transmission=0.70, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_DIALOG_821 -> EVENT_THOUGHT_976 ( transmission=0.20, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_pref]: CONCEPT_PROFILE_130 -> EVENT_ACTIVITY_242 ( transmission=0.78, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: PROFILE_973 -> SCENE_034 ( transmission=0.65, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_cau]: CONCEPT_KNOWLEDGE_455 -> EVENT_ACTIVITY_588 ( transmission=0.29, gate=OPEN )
+[DEBUG] - 能量阻断：发现冲突边 [ℰ_noise], 阻止向过时节点 EVENT_ACTIVITY_256 传导。
+[DEBUG] - 门控效应：EVENT_ACTIVITY_191 能量不足 (0.25 < firing_threshold=0.50), 无法向下游情景回溯。
+[DEBUG] - 显式子图 𝒢_act 边界锁定。激活值 A_K > 0.69 的节点共 13 个。
+[INFO] - [Step 2] 显式联想扩散结束。显式候选集 𝒮_exp 准备就绪。
+
+[INFO] - [Step 3] 流形轨迹预测 (The Jump: Predicting Next Semantic Centroid)
+[DEBUG] - 语义重心计算：h_ctx = WeightedAgg(21 nodes in 𝒢_act).
+[DEBUG] - 轨迹外推：输入预测器 F_𝜃, 结合尺度 Δt=0.09, 计算下一时刻语义落点 h_next.
+[INFO] - 搜索探针发射：在全量记忆库 𝒱 中执行近似最近邻搜索 (ANN)...
+[INFO] - [DISCOVERY] 跳跃性联想成功：在图谱拓扑 4 跳之外召回 6 个高相关隐式节点。
+[DEBUG] - 隐式节点：[CONCEPT_ABSTRACT_139] ("健康管理倾向") -> 相似度 0.8523
+[DEBUG] - 隐式节点：[CONCEPT_KNOWLEDGE_090] ("习惯性选择") -> 相似度 0.9348
+[DEBUG] - 隐式节点：[PROFILE_684] ("项目进展记录") -> 相似度 0.8935
+[DEBUG] - 隐式节点：[PROFILE_913] ("项目进展记录") -> 相似度 0.9162
+[DEBUG] - 隐式节点：[EVENT_ACTIVITY_813] ("项目进展记录") -> 相似度 0.8614
+[DEBUG] - 隐式节点：[CONCEPT_ABSTRACT_206] ("半年前的体检记录") -> 相似度 0.8179
+[INFO] - [Step 3] 隐式候选集 𝒮_imp 注入完成。
+
+[INFO] - [Step 4] 熵减自适应剪枝 (Entropy-based Adaptive Pruning)
+[DEBUG] - 混合候选集构建：𝒞 = 𝒮_exp ∪ 𝒮_imp (共 25 个节点).
+[DEBUG] - 概率分布计算：计算所有候选节点归一化分布 p(v).
+[DEBUG] - 信息熵评估：当前系统认知熵 H(𝒞) = 0.2321 (Peaked Distribution).
+[INFO] - 策略触发：由于 H 值较低，系统处于“高确信度”状态，收紧预取窗口。
+[INFO] - 执行动态剪枝：依据 Peakedness 调整 Top-K=14.
+[DEBUG] - 滤除噪声节点：[CONCEPT_ABSTRACT_823], [KNOWLEDGE_627], [EVENT_ACTIVITY_068] (能量过低/语义稀释).
+
+[INFO] - [Step 5] 最终输出与工作记忆加载...
+[INFO] - 预取子图 𝒢_next 生成完毕：包含 5 个概念锚点，10 个关键情景原子。
+[INFO] - 认知连续性校验：预取子图与当前 Context 的语义对齐度为 96.50%。
+[INFO] - === SDAA 联想激活周期完成，等待下一时刻感知输入 ===
+
+[INFO] - ------------------------------------------------------------
+
+[INFO] - 场景上下文感知：发现 5 个当前活跃原子，作为势能注入种子节点。
+
+[INFO] - [Step 1] 双原子差异化势能建模开始...
+[DEBUG] - 节点注入：[PROFILE_421] -> 初始势能 E0=3.8767 (turn_align=0.67)
+[DEBUG] - 节点注入：[CONCEPT_PROFILE_658] -> 初始势能 E0=1.0967 (Δt=1.73h, boost=0.19)
+[DEBUG] - 节点注入：[PROFILE_656] -> 初始势能 E0=3.1511 (intent_w=0.9)
+[DEBUG] - 节点注入：[EVENT_ACTIVITY_852] -> 初始势能 E0=1.2966 (intent_w=0.81)
+[DEBUG] - 节点注入：[EVENT_THOUGHT_331] -> 初始势能 E0=4.5390 (intent_w=0.84)
+[INFO] - [Step 1] 势能注入完成，激活分布 A0 映射成功，能量重心已锁定。
+
+[INFO] - [Step 2] 神经符号门控扩散过程启动 (K=4 Steps)...
+
+[INFO] - >>> Diffusion Step 1:
+[DEBUG] - 沿边传播 [ℰ_tem]: EVENT_DIALOG_282 -> EVENT_THOUGHT_641 ( transmission=0.41, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_sem]: EVENT_DIALOG_657 -> EVENT_THOUGHT_607 ( transmission=0.91, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_tem]: EVENT_DIALOG_738 -> SCENE_346 ( transmission=0.83, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_PROFILE_084 -> EVENT_ACTIVITY_972 ( transmission=0.67, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_ACTIVITY_786 -> SCENE_427 ( transmission=0.66, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_DIALOG_297 -> CONCEPT_ABSTRACT_495 ( transmission=0.37, gate=SOFT )
+[DEBUG] - 能量阻断：发现冲突边 [ℰ_conf], 阻止向过时节点 CONCEPT_PROFILE_062 传导。
+[DEBUG] - 路径触发：CONCEPT_KNOWLEDGE_426 ("过往事件索引") 被共振激活。
+[INFO] - Step 1 完成：新增活跃节点 11 个，系统总能量：19.9939
+
+[INFO] - >>> Diffusion Step 2:
+[DEBUG] - 沿边传播 [ℰ_cau]: CONCEPT_KNOWLEDGE_999 -> PROFILE_134 ( transmission=0.77, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_PROFILE_327 -> EVENT_THOUGHT_478 ( transmission=0.27, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_tem]: EVENT_ACTIVITY_100 -> EVENT_ACTIVITY_298 ( transmission=0.91, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_ACTIVITY_986 -> EVENT_THOUGHT_834 ( transmission=0.43, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_ACTIVITY_782 -> EVENT_THOUGHT_511 ( transmission=0.95, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_pref]: CONCEPT_KNOWLEDGE_510 -> EVENT_ACTIVITY_093 ( transmission=0.91, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_ACTIVITY_221 -> SCENE_362 ( transmission=0.22, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_DIALOG_904 -> PROFILE_293 ( transmission=0.59, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_ACTIVITY_904 -> CONCEPT_ABSTRACT_745 ( transmission=0.46, gate=SOFT )
+[DEBUG] - 能量阻断：发现冲突边 [ℰ_decay], 阻止向过时节点 PROFILE_584 传导。
+[INFO] - Step 2 完成：新增活跃节点 10 个，系统总能量：21.0660
+
+[INFO] - >>> Diffusion Step 3:
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_KNOWLEDGE_846 -> SCENE_697 ( transmission=0.65, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: PROFILE_383 -> CONCEPT_ABSTRACT_572 ( transmission=0.90, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_tem]: EVENT_DIALOG_522 -> PROFILE_513 ( transmission=0.21, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_tem]: CONCEPT_KNOWLEDGE_824 -> PROFILE_532 ( transmission=0.53, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_coh]: EVENT_ACTIVITY_336 -> SCENE_327 ( transmission=0.31, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_DIALOG_345 -> SCENE_849 ( transmission=0.57, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_KNOWLEDGE_487 -> EVENT_ACTIVITY_378 ( transmission=0.44, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_DIALOG_316 -> EVENT_ACTIVITY_612 ( transmission=0.55, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_coh]: EVENT_ACTIVITY_739 -> EVENT_ACTIVITY_598 ( transmission=0.55, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_coh]: PROFILE_152 -> EVENT_THOUGHT_033 ( transmission=0.62, gate=OPEN )
+[DEBUG] - 能量阻断：发现冲突边 [ℰ_decay], 阻止向过时节点 EVENT_ACTIVITY_429 传导。
+[DEBUG] - 路径触发：CONCEPT_KNOWLEDGE_708 ("长期偏好") 被共振激活。
+[INFO] - Step 3 完成：新增活跃节点 15 个，系统总能量：25.2719
+
+[INFO] - >>> Diffusion Step 4 (最终步)
+[DEBUG] - 沿边传播 [ℰ_sem]: EVENT_ACTIVITY_532 -> EVENT_THOUGHT_575 ( transmission=0.43, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_coh]: PROFILE_322 -> EVENT_THOUGHT_471 ( transmission=0.88, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_KNOWLEDGE_693 -> CONCEPT_ABSTRACT_625 ( transmission=0.55, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_DIALOG_306 -> EVENT_THOUGHT_965 ( transmission=0.93, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_ACTIVITY_707 -> PROFILE_325 ( transmission=0.55, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_cau]: CONCEPT_KNOWLEDGE_125 -> SCENE_693 ( transmission=0.60, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_ACTIVITY_298 -> EVENT_ACTIVITY_295 ( transmission=0.92, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: PROFILE_672 -> CONCEPT_ABSTRACT_766 ( transmission=0.55, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_KNOWLEDGE_956 -> SCENE_713 ( transmission=0.39, gate=OPEN )
+[DEBUG] - 门控效应：EVENT_ACTIVITY_686 能量不足 (0.22 < firing_threshold=0.62), 无法向下游情景回溯。
+[DEBUG] - 显式子图 𝒢_act 边界锁定。激活值 A_K > 0.69 的节点共 11 个。
+[INFO] - [Step 2] 显式联想扩散结束。显式候选集 𝒮_exp 准备就绪。
+
+[INFO] - [Step 3] 流形轨迹预测 (The Jump: Predicting Next Semantic Centroid)
+[DEBUG] - 语义重心计算：h_ctx = WeightedAgg(22 nodes in 𝒢_act).
+[DEBUG] - 轨迹外推：输入预测器 F_𝜃, 结合尺度 Δt=0.17, 计算下一时刻语义落点 h_next.
+[INFO] - 搜索探针发射：在全量记忆库 𝒱 中执行近似最近邻搜索 (ANN)...
+[INFO] - [DISCOVERY] 跳跃性联想成功：在图谱拓扑 4 跳之外召回 3 个高相关隐式节点。
+[DEBUG] - 隐式节点：[CONCEPT_KNOWLEDGE_669] ("研究兴趣更新") -> 相似度 0.8564
+[DEBUG] - 隐式节点：[EVENT_ACTIVITY_775] ("项目进展记录") -> 相似度 0.8314
+[DEBUG] - 隐式节点：[CONCEPT_ABSTRACT_930] ("健康管理倾向") -> 相似度 0.8844
+[INFO] - [Step 3] 隐式候选集 𝒮_imp 注入完成。
+
+[INFO] - [Step 4] 熵减自适应剪枝 (Entropy-based Adaptive Pruning)
+[DEBUG] - 混合候选集构建：𝒞 = 𝒮_exp ∪ 𝒮_imp (共 21 个节点).
+[DEBUG] - 概率分布计算：计算所有候选节点归一化分布 p(v).
+[DEBUG] - 信息熵评估：当前系统认知熵 H(𝒞) = 0.4662 (Peaked Distribution).
+[INFO] - 策略触发：由于 H 值较高，系统处于“探索”状态，放宽预取窗口。
+[INFO] - 执行动态剪枝：依据 Peakedness 调整 Top-K=14.
+[DEBUG] - 滤除噪声节点：[CONCEPT_ABSTRACT_904], [KNOWLEDGE_957] (能量过低/语义稀释).
+
+[INFO] - [Step 5] 最终输出与工作记忆加载...
+[INFO] - 预取子图 𝒢_next 生成完毕：包含 3 个概念锚点，10 个关键情景原子。
+[INFO] - 认知连续性校验：预取子图与当前 Context 的语义对齐度为 94.70%。
+[INFO] - === SDAA 联想激活周期完成，等待下一时刻感知输入 ===
+
+[INFO] - ------------------------------------------------------------
+
+[INFO] - 场景上下文感知：发现 3 个当前活跃原子，作为势能注入种子节点。
+
+[INFO] - [Step 1] 双原子差异化势能建模开始...
+[DEBUG] - 节点注入：[EVENT_DIALOG_986] -> 初始势能 E0=4.2892 (PageRank中心性=0.2, 稳态锚点)
+[DEBUG] - 节点注入：[EVENT_ACTIVITY_306] -> 初始势能 E0=3.0718 (逻辑惊奇度=0.92, 时间衰减=0.79)
+[DEBUG] - 节点注入：[CONCEPT_KNOWLEDGE_657] -> 初始势能 E0=2.9732 (Δt=2.23h, boost=0.1)
+[INFO] - [Step 1] 势能注入完成，激活分布 A0 映射成功，能量重心已锁定。
+
+[INFO] - [Step 2] 神经符号门控扩散过程启动 (K=4 Steps)...
+
+[INFO] - >>> Diffusion Step 1:
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_ACTIVITY_749 -> PROFILE_664 ( transmission=0.38, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_KNOWLEDGE_810 -> CONCEPT_ABSTRACT_582 ( transmission=0.70, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_tem]: EVENT_DIALOG_877 -> PROFILE_847 ( transmission=0.51, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: PROFILE_686 -> EVENT_ACTIVITY_190 ( transmission=0.94, gate=SOFT )
+[DEBUG] - 能量阻断：发现冲突边 [ℰ_conf], 阻止向过时节点 PROFILE_268 传导。
+[DEBUG] - 路径触发：CONCEPT_KNOWLEDGE_458 ("科研方向") 被共振激活。
+[INFO] - Step 1 完成：新增活跃节点 10 个，系统总能量：15.6353
+
+[INFO] - >>> Diffusion Step 2:
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_ACTIVITY_064 -> EVENT_ACTIVITY_477 ( transmission=0.42, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_KNOWLEDGE_707 -> EVENT_ACTIVITY_655 ( transmission=0.89, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_DIALOG_227 -> EVENT_THOUGHT_981 ( transmission=0.28, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_DIALOG_383 -> PROFILE_719 ( transmission=0.60, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_coh]: EVENT_ACTIVITY_781 -> EVENT_THOUGHT_697 ( transmission=0.76, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: PROFILE_541 -> CONCEPT_ABSTRACT_080 ( transmission=0.89, gate=OPEN )
+[DEBUG] - 能量阻断：发现冲突边 [ℰ_noise], 阻止向过时节点 CONCEPT_PROFILE_208 传导。
+[DEBUG] - 门控效应：EVENT_ACTIVITY_336 能量不足 (0.32 < firing_threshold=0.61), 无法向下游情景回溯。
+[INFO] - Step 2 完成：新增活跃节点 16 个，系统总能量：17.1953
+
+[INFO] - >>> Diffusion Step 3:
+[DEBUG] - 沿边传播 [ℰ_coh]: PROFILE_829 -> EVENT_ACTIVITY_465 ( transmission=0.28, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_DIALOG_060 -> SCENE_474 ( transmission=0.70, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: PROFILE_261 -> EVENT_ACTIVITY_764 ( transmission=0.35, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: PROFILE_353 -> EVENT_ACTIVITY_555 ( transmission=0.95, gate=OPEN )
+[DEBUG] - 门控效应：EVENT_ACTIVITY_185 能量不足 (0.46 < firing_threshold=0.58), 无法向下游情景回溯。
+[INFO] - Step 3 完成：新增活跃节点 16 个，系统总能量：21.5613
+
+[INFO] - >>> Diffusion Step 4 (最终步)
+[DEBUG] - 沿边传播 [ℰ_pref]: PROFILE_385 -> EVENT_ACTIVITY_700 ( transmission=0.92, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_tem]: CONCEPT_KNOWLEDGE_122 -> EVENT_THOUGHT_551 ( transmission=0.48, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_tem]: CONCEPT_PROFILE_775 -> EVENT_ACTIVITY_306 ( transmission=0.54, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_DIALOG_389 -> EVENT_THOUGHT_254 ( transmission=0.53, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_ACTIVITY_960 -> EVENT_ACTIVITY_033 ( transmission=0.80, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_PROFILE_247 -> EVENT_THOUGHT_069 ( transmission=0.26, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_DIALOG_689 -> EVENT_ACTIVITY_251 ( transmission=0.75, gate=SOFT )
+[DEBUG] - 能量阻断：发现冲突边 [ℰ_noise], 阻止向过时节点 PROFILE_773 传导。
+[DEBUG] - 门控效应：EVENT_ACTIVITY_516 能量不足 (0.23 < firing_threshold=0.65), 无法向下游情景回溯。
+[DEBUG] - 显式子图 𝒢_act 边界锁定。激活值 A_K > 0.68 的节点共 15 个。
+[INFO] - [Step 2] 显式联想扩散结束。显式候选集 𝒮_exp 准备就绪。
+
+[INFO] - [Step 3] 流形轨迹预测 (The Jump: Predicting Next Semantic Centroid)
+[DEBUG] - 语义重心计算：h_ctx = WeightedAgg(15 nodes in 𝒢_act).
+[DEBUG] - 轨迹外推：输入预测器 F_𝜃, 结合尺度 Δt=0.1, 计算下一时刻语义落点 h_next.
+[INFO] - 搜索探针发射：在全量记忆库 𝒱 中执行近似最近邻搜索 (ANN)...
+[INFO] - [DISCOVERY] 跳跃性联想成功：在图谱拓扑 4 跳之外召回 4 个高相关隐式节点。
+[DEBUG] - 隐式节点：[CONCEPT_KNOWLEDGE_308] ("项目进展记录") -> 相似度 0.7898
+[DEBUG] - 隐式节点：[EVENT_ACTIVITY_642] ("习惯性选择") -> 相似度 0.8484
+[DEBUG] - 隐式节点：[CONCEPT_KNOWLEDGE_049] ("项目进展记录") -> 相似度 0.9307
+[DEBUG] - 隐式节点：[CONCEPT_KNOWLEDGE_805] ("家庭偏好") -> 相似度 0.8310
+[INFO] - [Step 3] 隐式候选集 𝒮_imp 注入完成。
+
+[INFO] - [Step 4] 熵减自适应剪枝 (Entropy-based Adaptive Pruning)
+[DEBUG] - 混合候选集构建：𝒞 = 𝒮_exp ∪ 𝒮_imp (共 24 个节点).
+[DEBUG] - 概率分布计算：计算所有候选节点归一化分布 p(v).
+[DEBUG] - 信息熵评估：当前系统认知熵 H(𝒞) = 0.4078 (Peaked Distribution).
+[INFO] - 策略触发：由于 H 值较低，系统处于“高确信度”状态，收紧预取窗口。
+[INFO] - 执行动态剪枝：依据 Peakedness 调整 Top-K=12.
+[DEBUG] - 滤除噪声节点：[KNOWLEDGE_773], [CONCEPT_ABSTRACT_247], [KNOWLEDGE_308], [KNOWLEDGE_826] (能量过低/语义稀释).
+
+[INFO] - [Step 5] 最终输出与工作记忆加载...
+[INFO] - 预取子图 𝒢_next 生成完毕：包含 6 个概念锚点，7 个关键情景原子。
+[INFO] - 认知连续性校验：预取子图与当前 Context 的语义对齐度为 92.78%。
+[INFO] - === SDAA 联想激活周期完成，等待下一时刻感知输入 ===
+
+[INFO] - ------------------------------------------------------------
+
+[INFO] - 场景上下文感知：发现 5 个当前活跃原子，作为势能注入种子节点。
+
+[INFO] - [Step 1] 双原子差异化势能建模开始...
+[DEBUG] - 节点注入：[PROFILE_543] -> 初始势能 E0=1.3364 (intent_w=0.78)
+[DEBUG] - 节点注入：[CONCEPT_PROFILE_663] -> 初始势能 E0=1.1163 (Δt=2.13h, boost=0.09)
+[DEBUG] - 节点注入：[EVENT_DIALOG_850] -> 初始势能 E0=1.5619 (PageRank中心性=0.1, 稳态锚点)
+[DEBUG] - 节点注入：[PROFILE_618] -> 初始势能 E0=0.9582 (逻辑惊奇度=0.63, 时间衰减=0.91)
+[DEBUG] - 节点注入：[EVENT_DIALOG_688] -> 初始势能 E0=3.0354 (Δt=0.6h, boost=0.41)
+[INFO] - [Step 1] 势能注入完成，激活分布 A0 映射成功，能量重心已锁定。
+
+[INFO] - [Step 2] 神经符号门控扩散过程启动 (K=3 Steps)...
+
+[INFO] - >>> Diffusion Step 1:
+[DEBUG] - 沿边传播 [ℰ_sem]: PROFILE_937 -> EVENT_THOUGHT_713 ( transmission=0.65, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_ACTIVITY_566 -> CONCEPT_ABSTRACT_795 ( transmission=0.40, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_KNOWLEDGE_316 -> CONCEPT_ABSTRACT_369 ( transmission=0.57, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_pref]: CONCEPT_PROFILE_823 -> PROFILE_780 ( transmission=0.83, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: CONCEPT_KNOWLEDGE_424 -> EVENT_ACTIVITY_577 ( transmission=0.85, gate=OPEN )
+[DEBUG] - 能量阻断：发现冲突边 [ℰ_noise], 阻止向过时节点 CONCEPT_PROFILE_594 传导。
+[DEBUG] - 门控效应：EVENT_ACTIVITY_201 能量不足 (0.23 < firing_threshold=0.45), 无法向下游情景回溯。
+[INFO] - Step 1 完成：新增活跃节点 9 个，系统总能量：20.2176
+
+[INFO] - >>> Diffusion Step 2:
+[DEBUG] - 沿边传播 [ℰ_cau]: CONCEPT_KNOWLEDGE_782 -> PROFILE_990 ( transmission=0.74, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_ACTIVITY_751 -> CONCEPT_ABSTRACT_174 ( transmission=0.29, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_ACTIVITY_939 -> SCENE_658 ( transmission=0.92, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_PROFILE_968 -> EVENT_ACTIVITY_783 ( transmission=0.18, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_tem]: CONCEPT_PROFILE_725 -> EVENT_THOUGHT_010 ( transmission=0.35, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_cau]: CONCEPT_PROFILE_633 -> SCENE_935 ( transmission=0.55, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_PROFILE_545 -> SCENE_422 ( transmission=0.19, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_DIALOG_294 -> EVENT_ACTIVITY_515 ( transmission=0.81, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_tem]: CONCEPT_PROFILE_941 -> EVENT_ACTIVITY_537 ( transmission=0.29, gate=OPEN )
+[DEBUG] - 路径触发：CONCEPT_KNOWLEDGE_363 ("科研方向") 被共振激活。
+[INFO] - Step 2 完成：新增活跃节点 7 个，系统总能量：22.3979
+
+[INFO] - >>> Diffusion Step 3 (最终步)
+[DEBUG] - 沿边传播 [ℰ_tem]: EVENT_ACTIVITY_308 -> EVENT_ACTIVITY_670 ( transmission=0.94, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: PROFILE_389 -> PROFILE_566 ( transmission=0.55, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_tem]: CONCEPT_PROFILE_512 -> PROFILE_661 ( transmission=0.78, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_sem]: EVENT_DIALOG_942 -> EVENT_ACTIVITY_236 ( transmission=0.34, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_pref]: CONCEPT_KNOWLEDGE_048 -> EVENT_ACTIVITY_701 ( transmission=0.89, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_PROFILE_184 -> CONCEPT_ABSTRACT_017 ( transmission=0.92, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_tem]: PROFILE_952 -> EVENT_ACTIVITY_307 ( transmission=0.31, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: PROFILE_694 -> SCENE_340 ( transmission=0.48, gate=OPEN )
+[DEBUG] - 门控效应：EVENT_ACTIVITY_764 能量不足 (0.13 < firing_threshold=0.64), 无法向下游情景回溯。
+[DEBUG] - 显式子图 𝒢_act 边界锁定。激活值 A_K > 0.67 的节点共 19 个。
+[INFO] - [Step 2] 显式联想扩散结束。显式候选集 𝒮_exp 准备就绪。
+
+[INFO] - [Step 3] 流形轨迹预测 (The Jump: Predicting Next Semantic Centroid)
+[DEBUG] - 语义重心计算：h_ctx = WeightedAgg(21 nodes in 𝒢_act).
+[DEBUG] - 轨迹外推：输入预测器 F_𝜃, 结合尺度 Δt=0.11, 计算下一时刻语义落点 h_next.
+[INFO] - 搜索探针发射：在全量记忆库 𝒱 中执行近似最近邻搜索 (ANN)...
+[INFO] - [DISCOVERY] 跳跃性联想成功：在图谱拓扑 3 跳之外召回 5 个高相关隐式节点。
+[DEBUG] - 隐式节点：[PROFILE_803] ("研究兴趣更新") -> 相似度 0.8585
+[DEBUG] - 隐式节点：[PROFILE_567] ("研究兴趣更新") -> 相似度 0.8491
+[DEBUG] - 隐式节点：[CONCEPT_KNOWLEDGE_088] ("家庭偏好") -> 相似度 0.8273
+[DEBUG] - 隐式节点：[EVENT_ACTIVITY_731] ("健康管理倾向") -> 相似度 0.7931
+[DEBUG] - 隐式节点：[EVENT_ACTIVITY_390] ("习惯性选择") -> 相似度 0.9054
+[INFO] - [Step 3] 隐式候选集 𝒮_imp 注入完成。
+
+[INFO] - [Step 4] 熵减自适应剪枝 (Entropy-based Adaptive Pruning)
+[DEBUG] - 混合候选集构建：𝒞 = 𝒮_exp ∪ 𝒮_imp (共 20 个节点).
+[DEBUG] - 概率分布计算：计算所有候选节点归一化分布 p(v).
+[DEBUG] - 信息熵评估：当前系统认知熵 H(𝒞) = 0.5602 (Peaked Distribution).
+[INFO] - 策略触发：由于 H 值较高，系统处于“探索”状态，放宽预取窗口。
+[INFO] - 执行动态剪枝：依据 Peakedness 调整 Top-K=16.
+[DEBUG] - 滤除噪声节点：[EVENT_ACTIVITY_094], [EVENT_ACTIVITY_966], [PROFILE_456] (能量过低/语义稀释).
+
+[INFO] - [Step 5] 最终输出与工作记忆加载...
+[INFO] - 预取子图 𝒢_next 生成完毕：包含 5 个概念锚点，9 个关键情景原子。
+[INFO] - 认知连续性校验：预取子图与当前 Context 的语义对齐度为 88.87%。
+[INFO] - === SDAA 联想激活周期完成，等待下一时刻感知输入 ===
+
+[INFO] - ------------------------------------------------------------
+
+[INFO] - 场景上下文感知：发现 2 个当前活跃原子，作为势能注入种子节点。
+
+[INFO] - [Step 1] 双原子差异化势能建模开始...
+[DEBUG] - 节点注入：[EVENT_THOUGHT_442] -> 初始势能 E0=2.5954 (turn_align=0.82)
+[DEBUG] - 节点注入：[EVENT_ACTIVITY_027] -> 初始势能 E0=1.1585 (turn_align=0.68)
+[INFO] - [Step 1] 势能注入完成，激活分布 A0 映射成功，能量重心已锁定。
+
+[INFO] - [Step 2] 神经符号门控扩散过程启动 (K=4 Steps)...
+
+[INFO] - >>> Diffusion Step 1:
+[DEBUG] - 沿边传播 [ℰ_cau]: PROFILE_398 -> EVENT_ACTIVITY_743 ( transmission=0.87, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: EVENT_DIALOG_174 -> PROFILE_174 ( transmission=0.29, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_cau]: PROFILE_150 -> EVENT_ACTIVITY_172 ( transmission=0.51, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_cau]: PROFILE_802 -> EVENT_ACTIVITY_370 ( transmission=0.37, gate=OPEN )
+[INFO] - Step 1 完成：新增活跃节点 13 个，系统总能量：17.0402
+
+[INFO] - >>> Diffusion Step 2:
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_DIALOG_390 -> CONCEPT_ABSTRACT_451 ( transmission=0.44, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_tem]: CONCEPT_KNOWLEDGE_329 -> SCENE_971 ( transmission=0.72, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_cau]: EVENT_ACTIVITY_988 -> PROFILE_992 ( transmission=0.43, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_coh]: EVENT_ACTIVITY_334 -> PROFILE_288 ( transmission=0.81, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_cau]: CONCEPT_PROFILE_955 -> SCENE_205 ( transmission=0.64, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_tem]: EVENT_DIALOG_028 -> PROFILE_966 ( transmission=0.73, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_cau]: CONCEPT_PROFILE_839 -> PROFILE_690 ( transmission=0.56, gate=OPEN )
+[DEBUG] - 能量阻断：发现冲突边 [ℰ_noise], 阻止向过时节点 PROFILE_733 传导。
+[INFO] - Step 2 完成：新增活跃节点 13 个，系统总能量：21.5058
+
+[INFO] - >>> Diffusion Step 3:
+[DEBUG] - 沿边传播 [ℰ_coh]: EVENT_DIALOG_946 -> PROFILE_557 ( transmission=0.21, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: EVENT_DIALOG_654 -> EVENT_ACTIVITY_112 ( transmission=0.77, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_tem]: EVENT_DIALOG_046 -> SCENE_661 ( transmission=0.70, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_cau]: PROFILE_109 -> EVENT_ACTIVITY_101 ( transmission=0.38, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_coh]: EVENT_DIALOG_595 -> SCENE_227 ( transmission=0.52, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_pref]: EVENT_DIALOG_708 -> SCENE_155 ( transmission=0.45, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: CONCEPT_PROFILE_303 -> PROFILE_943 ( transmission=0.92, gate=OPEN )
+[DEBUG] - 门控效应：EVENT_ACTIVITY_352 能量不足 (0.18 < firing_threshold=0.49), 无法向下游情景回溯。
+[INFO] - Step 3 完成：新增活跃节点 13 个，系统总能量：23.5945
+
+[INFO] - >>> Diffusion Step 4 (最终步)
+[DEBUG] - 沿边传播 [ℰ_pref]: CONCEPT_KNOWLEDGE_069 -> CONCEPT_ABSTRACT_046 ( transmission=0.80, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_sem]: CONCEPT_KNOWLEDGE_664 -> EVENT_ACTIVITY_694 ( transmission=0.80, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: EVENT_ACTIVITY_566 -> EVENT_THOUGHT_339 ( transmission=0.61, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_tem]: PROFILE_645 -> EVENT_THOUGHT_191 ( transmission=0.67, gate=SOFT )
+[DEBUG] - 沿边传播 [ℰ_pref]: CONCEPT_PROFILE_756 -> SCENE_905 ( transmission=0.33, gate=CLOSED )
+[DEBUG] - 沿边传播 [ℰ_pref]: PROFILE_005 -> EVENT_THOUGHT_211 ( transmission=0.39, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: CONCEPT_PROFILE_819 -> SCENE_192 ( transmission=0.46, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_pref]: CONCEPT_PROFILE_269 -> PROFILE_541 ( transmission=0.92, gate=OPEN )
+[DEBUG] - 沿边传播 [ℰ_coh]: PROFILE_626 -> PROFILE_602 ( transmission=0.27, gate=OPEN )
+[DEBUG] - 显式子图 𝒢_act 边界锁定。激活值 A_K > 0.68 的节点共 15 个。
+[INFO] - [Step 2] 显式联想扩散结束。显式候选集 𝒮_exp 准备就绪。
+
+[INFO] - [Step 3] 流形轨迹预测 (The Jump: Predicting Next Semantic Centroid)
+[DEBUG] - 语义重心计算：h_ctx = WeightedAgg(13 nodes in 𝒢_act).
+[DEBUG] - 轨迹外推：输入预测器 F_𝜃, 结合尺度 Δt=0.09, 计算下一时刻语义落点 h_next.
+[INFO] - 搜索探针发射：在全量记忆库 𝒱 中执行近似最近邻搜索 (ANN)...
+[INFO] - [DISCOVERY] 跳跃性联想成功：在图谱拓扑 4 跳之外召回 3 个高相关隐式节点。
+[DEBUG] - 隐式节点：[PROFILE_711] ("半年前的体检记录") -> 相似度 0.8617
+[DEBUG] - 隐式节点：[CONCEPT_KNOWLEDGE_611] ("半年前的体检记录") -> 相似度 0.8720
+[DEBUG] - 隐式节点：[CONCEPT_KNOWLEDGE_191] ("研究兴趣更新") -> 相似度 0.8817
+[INFO] - [Step 3] 隐式候选集 𝒮_imp 注入完成。
+
+[INFO] - [Step 4] 熵减自适应剪枝 (Entropy-based Adaptive Pruning)
+[DEBUG] - 混合候选集构建：𝒞 = 𝒮_exp ∪ 𝒮_imp (共 29 个节点).
+[DEBUG] - 概率分布计算：计算所有候选节点归一化分布 p(v).
+[DEBUG] - 信息熵评估：当前系统认知熵 H(𝒞) = 0.6428 (Peaked Distribution).
+[INFO] - 策略触发：由于 H 值较高，系统处于“探索”状态，放宽预取窗口。
+[INFO] - 执行动态剪枝：依据 Peakedness 调整 Top-K=15.
+[DEBUG] - 滤除噪声节点：[CONCEPT_ABSTRACT_296], [KNOWLEDGE_192] (能量过低/语义稀释).
+
+[INFO] - [Step 5] 最终输出与工作记忆加载...
+[INFO] - 预取子图 𝒢_next 生成完毕：包含 5 个概念锚点，10 个关键情景原子。
+[INFO] - 认知连续性校验：预取子图与当前 Context 的语义对齐度为 93.26%。
+[INFO] - === SDAA 联想激活周期完成，等待下一时刻感知输入 ===
+
+[DEBUG] - 运行态监控：cache_hit=0.84, fallback=0.38, mem_pressure=0.46
+[DEBUG] - 运行态监控：cache_hit=0.46, fallback=0.18, mem_pressure=0.52
+[DEBUG] - 运行态监控：cache_hit=0.72, fallback=0.19, mem_pressure=0.47
+[DEBUG] - 运行态监控：cache_hit=0.75, fallback=0.21, mem_pressure=0.23
+[DEBUG] - 运行态监控：cache_hit=0.67, fallback=0.33, mem_pressure=0.27
+[DEBUG] - 运行态监控：cache_hit=0.37, fallback=0.13, mem_pressure=0.32
+[DEBUG] - 运行态监控：cache_hit=0.80, fallback=0.25, mem_pressure=0.68
+[DEBUG] - 运行态监控：cache_hit=0.63, fallback=0.23, mem_pressure=0.53
+[DEBUG] - 运行态监控：cache_hit=0.50, fallback=0.24, mem_pressure=0.84
+[DEBUG] - 运行态监控：cache_hit=0.66, fallback=0.31, mem_pressure=0.67
+[DEBUG] - 运行态监控：cache_hit=0.60, fallback=0.13, mem_pressure=0.42
+[DEBUG] - 运行态监控：cache_hit=0.77, fallback=0.28, mem_pressure=0.29
+[DEBUG] - 运行态监控：cache_hit=0.85, fallback=0.06, mem_pressure=0.30
+[DEBUG] - 运行态监控：cache_hit=0.84, fallback=0.08, mem_pressure=0.75
+[DEBUG] - 运行态监控：cache_hit=0.42, fallback=0.33, mem_pressure=0.26
+[DEBUG] - 运行态监控：cache_hit=0.77, fallback=0.29, mem_pressure=0.75
+[DEBUG] - 运行态监控：cache_hit=0.70, fallback=0.20, mem_pressure=0.56
+[DEBUG] - 运行态监控：cache_hit=0.80, fallback=0.33, mem_pressure=0.70
+[DEBUG] - 运行态监控：cache_hit=0.67, fallback=0.24, mem_pressure=0.55
+[DEBUG] - 运行态监控：cache_hit=0.45, fallback=0.39, mem_pressure=0.32
+[DEBUG] - 运行态监控：cache_hit=0.68, fallback=0.38, mem_pressure=0.49
+[DEBUG] - 运行态监控：cache_hit=0.86, fallback=0.34, mem_pressure=0.20
+[DEBUG] - 运行态监控：cache_hit=0.78, fallback=0.19, mem_pressure=0.14
+[DEBUG] - 运行态监控：cache_hit=0.51, fallback=0.28, mem_pressure=0.63
+[DEBUG] - 运行态监控：cache_hit=0.43, fallback=0.10, mem_pressure=0.34
+[DEBUG] - 运行态监控：cache_hit=0.49, fallback=0.35, mem_pressure=0.39
+[DEBUG] - 运行态监控：cache_hit=0.43, fallback=0.27, mem_pressure=0.57
+[DEBUG] - 运行态监控：cache_hit=0.56, fallback=0.08, mem_pressure=0.70
+[DEBUG] - 运行态监控：cache_hit=0.79, fallback=0.19, mem_pressure=0.66
+[DEBUG] - 运行态监控：cache_hit=0.75, fallback=0.36, mem_pressure=0.44
+[DEBUG] - 运行态监控：cache_hit=0.63, fallback=0.25, mem_pressure=0.75
+[DEBUG] - 运行态监控：cache_hit=0.83, fallback=0.08, mem_pressure=0.83
+[DEBUG] - 运行态监控：cache_hit=0.71, fallback=0.29, mem_pressure=0.74
+[DEBUG] - 运行态监控：cache_hit=0.80, fallback=0.19, mem_pressure=0.83
+[DEBUG] - 运行态监控：cache_hit=0.82, fallback=0.22, mem_pressure=0.34
+[DEBUG] - 运行态监控：cache_hit=0.51, fallback=0.24, mem_pressure=0.20
+[DEBUG] - 运行态监控：cache_hit=0.84, fallback=0.33, mem_pressure=0.77
+[DEBUG] - 运行态监控：cache_hit=0.78, fallback=0.07, mem_pressure=0.57
+[DEBUG] - 运行态监控：cache_hit=0.83, fallback=0.06, mem_pressure=0.80
+[DEBUG] - 运行态监控：cache_hit=0.44, fallback=0.21, mem_pressure=0.84
+[DEBUG] - 运行态监控：cache_hit=0.59, fallback=0.40, mem_pressure=0.78
+[DEBUG] - 运行态监控：cache_hit=0.85, fallback=0.16, mem_pressure=0.76
+[DEBUG] - 运行态监控：cache_hit=0.85, fallback=0.08, mem_pressure=0.37
+[DEBUG] - 运行态监控：cache_hit=0.40, fallback=0.28, mem_pressure=0.59
+[DEBUG] - 运行态监控：cache_hit=0.38, fallback=0.27, mem_pressure=0.64
+[DEBUG] - 运行态监控：cache_hit=0.78, fallback=0.20, mem_pressure=0.17
+[DEBUG] - 运行态监控：cache_hit=0.40, fallback=0.12, mem_pressure=0.16
+[DEBUG] - 运行态监控：cache_hit=0.69, fallback=0.23, mem_pressure=0.43
+[DEBUG] - 运行态监控：cache_hit=0.35, fallback=0.17, mem_pressure=0.19
+[DEBUG] - 运行态监控：cache_hit=0.84, fallback=0.29, mem_pressure=0.46
+[DEBUG] - 运行态监控：cache_hit=0.48, fallback=0.08, mem_pressure=0.70
+[DEBUG] - 运行态监控：cache_hit=0.41, fallback=0.18, mem_pressure=0.32
+[DEBUG] - 运行态监控：cache_hit=0.57, fallback=0.33, mem_pressure=0.76
+[DEBUG] - 运行态监控：cache_hit=0.72, fallback=0.29, mem_pressure=0.15
+[DEBUG] - 运行态监控：cache_hit=0.67, fallback=0.26, mem_pressure=0.22
+[DEBUG] - 运行态监控：cache_hit=0.55, fallback=0.12, mem_pressure=0.66
+[DEBUG] - 运行态监控：cache_hit=0.87, fallback=0.27, mem_pressure=0.43
+[DEBUG] - 运行态监控：cache_hit=0.47, fallback=0.36, mem_pressure=0.21
+[DEBUG] - 运行态监控：cache_hit=0.42, fallback=0.31, mem_pressure=0.36
+[DEBUG] - 运行态监控：cache_hit=0.59, fallback=0.33, mem_pressure=0.29
+[DEBUG] - 运行态监控：cache_hit=0.72, fallback=0.14, mem_pressure=0.55
+[DEBUG] - 运行态监控：cache_hit=0.76, fallback=0.15, mem_pressure=0.81
+[DEBUG] - 运行态监控：cache_hit=0.37, fallback=0.35, mem_pressure=0.76
+[DEBUG] - 运行态监控：cache_hit=0.47, fallback=0.26, mem_pressure=0.24
+[DEBUG] - 运行态监控：cache_hit=0.57, fallback=0.28, mem_pressure=0.69
+[DEBUG] - 运行态监控：cache_hit=0.80, fallback=0.13, mem_pressure=0.39
+[DEBUG] - 运行态监控：cache_hit=0.49, fallback=0.27, mem_pressure=0.15
+[DEBUG] - 运行态监控：cache_hit=0.86, fallback=0.05, mem_pressure=0.37
+[DEBUG] - 运行态监控：cache_hit=0.53, fallback=0.19, mem_pressure=0.73
+[DEBUG] - 运行态监控：cache_hit=0.59, fallback=0.24, mem_pressure=0.23
+[DEBUG] - 运行态监控：cache_hit=0.62, fallback=0.40, mem_pressure=0.15
+[DEBUG] - 运行态监控：cache_hit=0.68, fallback=0.05, mem_pressure=0.26
+[DEBUG] - 运行态监控：cache_hit=0.88, fallback=0.38, mem_pressure=0.40
+[DEBUG] - 运行态监控：cache_hit=0.51, fallback=0.30, mem_pressure=0.68
+[DEBUG] - 运行态监控：cache_hit=0.59, fallback=0.19, mem_pressure=0.58
+[DEBUG] - 运行态监控：cache_hit=0.66, fallback=0.10, mem_pressure=0.16
+[DEBUG] - 运行态监控：cache_hit=0.40, fallback=0.37, mem_pressure=0.83
+[DEBUG] - 运行态监控：cache_hit=0.44, fallback=0.16, mem_pressure=0.54
+[DEBUG] - 运行态监控：cache_hit=0.79, fallback=0.28, mem_pressure=0.58
+[DEBUG] - 运行态监控：cache_hit=0.53, fallback=0.20, mem_pressure=0.82
+[DEBUG] - 运行态监控：cache_hit=0.49, fallback=0.14, mem_pressure=0.79
+[DEBUG] - 运行态监控：cache_hit=0.42, fallback=0.26, mem_pressure=0.14
+[DEBUG] - 运行态监控：cache_hit=0.73, fallback=0.28, mem_pressure=0.23
+[DEBUG] - 运行态监控：cache_hit=0.36, fallback=0.10, mem_pressure=0.11
+[DEBUG] - 运行态监控：cache_hit=0.63, fallback=0.17, mem_pressure=0.49
+[DEBUG] - 运行态监控：cache_hit=0.82, fallback=0.14, mem_pressure=0.38
+[DEBUG] - 运行态监控：cache_hit=0.78, fallback=0.36, mem_pressure=0.65
+[DEBUG] - 运行态监控：cache_hit=0.42, fallback=0.36, mem_pressure=0.35
