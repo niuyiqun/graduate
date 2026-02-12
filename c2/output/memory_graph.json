@@ -1,0 +1,43 @@
+{
+  "directed": true,
+  "multigraph": true,
+  "graph": {},
+  "nodes": [
+    {
+      "content": "",
+      "category": "unknown",
+      "type": "conceptual",
+      "timestamp": 0,
+      "id": "node_0"
+    },
+    {
+      "content": "",
+      "category": "unknown",
+      "type": "conceptual",
+      "timestamp": 0,
+      "id": "node_1"
+    },
+    {
+      "content": "",
+      "category": "unknown",
+      "type": "conceptual",
+      "timestamp": 0,
+      "id": "node_2"
+    },
+    {
+      "content": "",
+      "category": "unknown",
+      "type": "conceptual",
+      "timestamp": 0,
+      "id": "node_3"
+    },
+    {
+      "content": "",
+      "category": "unknown",
+      "type": "conceptual",
+      "timestamp": 0,
+      "id": "node_4"
+    }
+  ],
+  "links": []
+}
