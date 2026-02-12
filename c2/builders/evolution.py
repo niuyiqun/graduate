@@ -1,76 +1,36 @@
-# -*- coding: UTF-8 -*-
-# c2/builders/evolution.py
-
-from c2.builders.base import BaseGraphBuilder
-from c2.definitions import EdgeType, MemoryNode
-from c2.prompts import CONFLICT_DETECTION_PROMPT
+from ..definitions import EdgeType, AtomType
 
 
-class EvolutionBuilder(BaseGraphBuilder):
-    """
-    Phase 2: 冲突检测与版本更替
-    """
+class EvolutionBuilder:
+    """Phase 2: 动态演化 - 模拟 NLI 冲突检测"""
 
-    def __init__(self, llm_client):
-        super().__init__()
-        self.llm = llm_client
-        self.decay_factor = 0.5
+    def build(self, graph, new_nodes):
+        # 仅处理 Profile (用户画像) 类型的演化，如喜好变更
+        profile_nodes = [n for n in new_nodes if n.atom.atom_type == AtomType.PROFILE]
 
-    def process(self, new_nodes, graph):
         all_nodes = graph.get_all_nodes()
-        if len(all_nodes) < 2: return
 
-        # 只比较 Profile 类型的节点
-        profile_nodes = [n for n in all_nodes if "profile" in n.category.value]
-        if len(profile_nodes) < 2: return
+        for new_node in profile_nodes:
+            # 模拟：简单查找内容包含相同关键词的旧节点 (真实环境用 Vector Search + LLM NLI)
+            # 假设 new_node: "我不吃辣了", old_node: "我喜欢吃辣"
+            for old_node in all_nodes:
+                if old_node == new_node: continue
+                if old_node.atom.atom_type != AtomType.PROFILE: continue
 
-        conflict_count = 0
+                # --- Mock NLI Logic ---
+                # 如果讨论的是同一个话题但内容冲突
+                if self._mock_nli_conflict(new_node.atom.content, old_node.atom.content):
+                    # 建立演化边：旧 -> 新
+                    graph.add_edge(old_node.id, new_node.id, EdgeType.VERSION, weight=1.0)
+                    # 艾宾浩斯衰减：降低旧节点的基础质量
+                    old_node.base_mass *= 0.5
+                    print(f"[Evolution] Conflict Detected! Evolving {old_node.id} -> {new_node.id}")
 
-        for i in range(len(profile_nodes)):
-            for j in range(i + 1, len(profile_nodes)):
-                n1 = profile_nodes[i]
-                n2 = profile_nodes[j]
-
-                # NLI 检测
-                is_conflict, debug_msg = self._detect_conflict(n1.content, n2.content)
-
-                if is_conflict:
-                    print(f"    ⚔️ [Conflict] '{n1.content}' vs '{n2.content}'")
-
-                    # 判断谁新谁旧
-                    ts1 = float(n1.timestamp) if n1.timestamp else 0
-                    ts2 = float(n2.timestamp) if n2.timestamp else 0
-
-                    newer = n2 if ts2 >= ts1 else n1
-                    older = n1 if newer == n2 else n2
-
-                    graph.add_edge(newer.node_id, older.node_id, EdgeType.VERSION)
-                    older.energy_level *= self.decay_factor
-                    conflict_count += 1
-
-        if conflict_count > 0:
-            print(f"  🧬 [Evolution] Resolved {conflict_count} conflicts")
-
-    def _detect_conflict(self, text_a: str, text_b: str):
-        if not self.llm: return False, "No LLM"
-
-        prompt = CONFLICT_DETECTION_PROMPT.format(text_a=text_a, text_b=text_b)
-
-        try:
-            res = self.llm.chat([{"role": "user", "content": prompt}])
-            content = ""
-            if isinstance(res, dict):
-                content = res.get("content", "")
-            else:
-                content = str(res)
-
-            content = content.strip().upper()
-
-            # 严格匹配 YES
-            if content == "YES":
-                return True, content
-            else:
-                return False, content
-
-        except Exception as e:
-            return False, str(e)
+    def _mock_nli_conflict(self, new_text, old_text):
+        # 简单的规则模拟 LLM 判断
+        keywords = ["辣", "甜", "咖啡"]
+        for k in keywords:
+            if k in new_text and k in old_text:
+                # 简单假设：只要提到同类关键词，就算潜在更新
+                return True
+        return False

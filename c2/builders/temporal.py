@@ -1,37 +1,36 @@
-# -*- coding: UTF-8 -*-
-# c2/builders/temporal.py
-
-from c2.builders.base import BaseGraphBuilder
-from c2.definitions import EdgeType, NodeType, AtomCategory, MemoryNode
+from ..definitions import EdgeType, AtomType
 
 
-class TemporalBuilder(BaseGraphBuilder):
-    """
-    Phase 1.2: 构建时间主干
-    逻辑: 将 Activity 节点按时间戳串联。
-    """
+class EvolutionBuilder:
+    """Phase 2: 动态演化 - 模拟 NLI 冲突检测"""
 
-    def process(self, new_nodes, graph):
-        # 获取全图所有的 Episodic Activity 节点，并按时间排序
-        all_episodic = graph.get_nodes_sorted_by_time(NodeType.EPISODIC)
-        activities = [n for n in all_episodic if n.category == AtomCategory.ACTIVITY]
+    def build(self, graph, new_nodes):
+        # 仅处理 Profile (用户画像) 类型的演化，如喜好变更
+        profile_nodes = [n for n in new_nodes if n.atom.atom_type == AtomType.PROFILE]
 
-        if len(activities) < 2: return
+        all_nodes = graph.get_all_nodes()
 
-        count = 0
-        for i in range(len(activities) - 1):
-            current_node = activities[i]
-            next_node = activities[i + 1]
+        for new_node in profile_nodes:
+            # 模拟：简单查找内容包含相同关键词的旧节点 (真实环境用 Vector Search + LLM NLI)
+            # 假设 new_node: "我不吃辣了", old_node: "我喜欢吃辣"
+            for old_node in all_nodes:
+                if old_node == new_node: continue
+                if old_node.atom.atom_type != AtomType.PROFILE: continue
 
-            # 简单的判重：检查是否已有边
-            if not graph.graph.has_edge(current_node.node_id, next_node.node_id):
-                graph.add_edge(
-                    current_node.node_id,
-                    next_node.node_id,
-                    EdgeType.TEMPORAL,
-                    weight=1.0
-                )
-                count += 1
+                # --- Mock NLI Logic ---
+                # 如果讨论的是同一个话题但内容冲突
+                if self._mock_nli_conflict(new_node.atom.content, old_node.atom.content):
+                    # 建立演化边：旧 -> 新
+                    graph.add_edge(old_node.id, new_node.id, EdgeType.VERSION, weight=1.0)
+                    # 艾宾浩斯衰减：降低旧节点的基础质量
+                    old_node.base_mass *= 0.5
+                    print(f"[Evolution] Conflict Detected! Evolving {old_node.id} -> {new_node.id}")
 
-        if count > 0:
-            print(f"  ⏳ [Temporal] Linked {count} time-steps")
+    def _mock_nli_conflict(self, new_text, old_text):
+        # 简单的规则模拟 LLM 判断
+        keywords = ["辣", "甜", "咖啡"]
+        for k in keywords:
+            if k in new_text and k in old_text:
+                # 简单假设：只要提到同类关键词，就算潜在更新
+                return True
+        return False
