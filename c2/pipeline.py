@@ -174,7 +174,7 @@ if __name__ == "__main__":
     CONFIG_PATH = "config/llm_config.yaml"
     # 🔥 确保这里指向你打过 Embedding 补丁的文件
     C1_OUTPUT = "c1/output/locomo_extracted_atoms_with_emb.jsonl"
-    C2_OUTPUT = "c2/output/memory_graphs.jsonl"
+    C2_OUTPUT = "c2/output/memory_graphs_1.jsonl"
 
     pipeline = MemoryGraphPipeline(C1_OUTPUT, C2_OUTPUT, CONFIG_PATH)
     pipeline.run()

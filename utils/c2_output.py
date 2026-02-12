@@ -7,7 +7,7 @@ import numpy as np
 
 # === 配置 ===
 OUTPUT_DIR = "../c2/output"
-OUTPUT_FILE = os.path.join(OUTPUT_DIR, "memory_graphs.jsonl")
+OUTPUT_FILE = os.path.join(OUTPUT_DIR, "memory_graphs_1.jsonl")
 SAMPLE_COUNT = 100  # 生成 100 个样本
 EMBEDDING_DIM = 384  # all-MiniLM-L6-v2 的维度
 
