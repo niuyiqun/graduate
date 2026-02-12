@@ -1,42 +1,54 @@
 import numpy as np
+from typing import List, Dict
+from .constants import SDAAConstants
+from ..c2.data_models import MemoryNode
 
 
-class ManifoldTrajectoryPredictor:
-    """Chapter 3 Step 3: 基于子图表征的流形轨迹预测 (The Jump)"""
+class TrajectoryPredictor:
+    """
+    4.3.2(3) 流形轨迹预测 (Manifold Trajectory Prediction)
+    跨越拓扑稀疏区域，推演思维重心的下一落点。
+    """
 
-    def predict_next_hop(self, activated_nodes, energy_map):
-        if not activated_nodes:
-            return None
+    def __init__(self, all_nodes_pool: List[MemoryNode]):
+        self.pool = all_nodes_pool
+        # 简化版预测器 F_theta 的参数 (实际通过公式 4-11 离线训练得到)
+        self.theta_velocity_vector = np.random.normal(0, 0.01, 128)
 
-        # 1. 结构语义聚合 (Weighted Aggregation)
-        # 计算 h_context: 当前思维的重心
-        weighted_embeddings = []
-        total_energy = 0
-
-        for node in activated_nodes:
-            energy = energy_map.get(node.id, 0)
-            # 模拟 Embedding (在真实代码中应从 node.atom.embedding 获取)
-            # 这里为了跑通 Mock 一个 random vector
-            mock_emb = np.random.rand(128)
-            weighted_embeddings.append(mock_emb * energy)
-            total_energy += energy
-
-        if total_energy == 0: return None
-
-        h_context = np.sum(weighted_embeddings, axis=0) / total_energy
-
-        # 2. 向量轨迹演化 (Vector Evolution)
-        # 模拟轻量级预测网络 (MLP): h_next = f(h_context)
-        # 这里简单模拟为：保持动量，略微偏移
-        h_next = h_context + np.random.normal(0, 0.1, 128)
-
-        return h_next
-
-    def mock_vector_search(self, h_next, all_nodes, top_k=3):
+    def predict_implicit_nodes(self, act_nodes: List[MemoryNode], energies: Dict[str, float]):
         """
-        3. 全局全息投影 (Global Projection)
-        真实系统中这里会调用 vector database (FAISS/Chroma)
+        执行轨迹外推与隐式召回 (公式 4-9 至 4-12)
         """
-        # 简单模拟返回几个随机节点作为“跳跃”结果
-        import random
-        return random.sample(all_nodes, min(len(all_nodes), top_k))
+        if not act_nodes: return []
+
+        # 1. 计算语义重心 h_ctx (公式 4-9)
+        h_ctx = self._calculate_centroid(act_nodes, energies)
+
+        # 2. 轨迹推演 h_next (公式 4-10)
+        # 模拟预测器产生的位移向量
+        h_next = h_ctx + self.theta_velocity_vector * SDAAConstants.TIME_STEP_DELTA_T
+
+        # 3. 全局全息投影召回 (公式 4-12)
+        return self._ann_search(h_next)
+
+    def _calculate_centroid(self, nodes, energies):
+        """加权聚合当前思维状态坐标"""
+        vecs = []
+        weights = []
+        for n in nodes:
+            vecs.append(n.embedding)
+            weights.append(energies.get(n.node_id, 0.0))
+
+        return np.average(vecs, axis=0, weights=weights)
+
+    def _ann_search(self, query_vec):
+        """近似最近邻搜索模拟"""
+        scores = []
+        for node in self.pool:
+            sim = np.dot(query_vec, node.embedding) / (
+                        np.linalg.norm(query_vec) * np.linalg.norm(node.embedding) + 1e-9)
+            scores.append((node, sim))
+
+        # 召回 Top-K 隐式落点
+        scores.sort(key=lambda x: x[1], reverse=True)
+        return [item[0] for item in scores[:SDAAConstants.TOP_K_IMP]]

@@ -1,11 +1,5 @@
 # -*- coding: UTF-8 -*-
-"""
-@Project ：graduate 
-@File    ：ge.py
-@Author  ：niu
-@Date    ：2026/1/8 15:11 
-@Desc    ：
-"""
+
 import os
 
 

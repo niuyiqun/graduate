@@ -1,0 +1,19 @@
+# Metrics log (last-row values from the provided figures)
+
+
+Single Hop:  F1=41.25, BLEU-1=28.90, LLM-as-a-Judge=69.5
+Multi-Hop:   F1=31.58, BLEU-1=22.15, LLM-as-a-Judge=54.8
+Open Domain: F1=48.92, BLEU-1=41.15, LLM-as-a-Judge=75.3
+Temporal:    F1=53.40, BLEU-1=42.66, LLM-as-a-Judge=60.1
+
+
+METEOR=33.4, BERTScore=57.1, Consistency=88.6
+
+
+Single Hop:  F1=42.80, BLEU-1=29.50, LLM-as-a-Judge=70.8
+Multi-Hop:   F1=45.60, BLEU-1=33.20, LLM-as-a-Judge=72.5
+Open Domain: F1=49.80, BLEU-1=41.50, LLM-as-a-Judge=76.2
+Temporal:    F1=65.20, BLEU-1=51.40, LLM-as-a-Judge=78.9
+
+
+METEOR=35.8, BERTScore=59.2, Consistency=94.5

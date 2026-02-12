@@ -1,0 +1,45 @@
+[INFO] - Initialized evaluation for dataset: locomo_extracted_atoms_no_embedding.jsonl
+[INFO] - Loaded 497 atoms. Starting graph construction pipeline...
+[INFO] - Executing Phase 1: Temporal Skeleton Construction...
+[INFO] -  > Added 210 temporal edges.
+[INFO] - Executing Phase 1 & 4: Semantic Association...
+[INFO] -  > Added 595 semantic edges.
+[INFO] - Executing Phase 2: Evolution & Conflict Resolution...
+[INFO] - Evolution triggered for node: 0da157e1-aa73-42be-901f-399e6155ff0f
+[INFO] - Evolution triggered for node: 1ecc5d31-5302-43d1-91d1-61ebb684503a
+[INFO] - Evolution triggered for node: 2ec4d6e4-ea55-4897-bd16-9a80a064d18c
+[INFO] - Evolution triggered for node: 72806509-fa69-40de-8609-c38115f62c35
+[INFO] - Executing Phase 5: Structure-Induced Abstraction...
+[INFO] - Concept emerged from cluster #0 (size: 30)
+[INFO] - Concept emerged from cluster #1 (size: 22)
+[INFO] - Concept emerged from cluster #2 (size: 21)
+[INFO] - Concept emerged from cluster #3 (size: 20)
+[INFO] - Concept emerged from cluster #4 (size: 19)
+[INFO] - Concept emerged from cluster #5 (size: 17)
+[INFO] - Concept emerged from cluster #6 (size: 16)
+[INFO] - Concept emerged from cluster #7 (size: 14)
+[INFO] - Concept emerged from cluster #8 (size: 12)
+[INFO] - Concept emerged from cluster #9 (size: 12)
+[INFO] - Concept emerged from cluster #10 (size: 11)
+[INFO] - Concept emerged from cluster #11 (size: 9)
+[INFO] - Concept emerged from cluster #12 (size: 8)
+[INFO] - Computing final graph metrics...
+[INFO] - 
+[INFO] - ==================================================
+[INFO] -         NEURO-SYMBOLIC GRAPH METRICS REPORT       
+[INFO] - ==================================================
+[INFO] - [1. Topology Metrics]
+[INFO] -   Graph Density          : 0.0039
+[INFO] -   Clustering Coeff.      : 0.1030
+[INFO] -   Avg. Path Length       : 4.73
+[INFO] - 
+[2. Structural Quality]
+[INFO] -   Modularity (Q-Score)   : 0.6563
+[INFO] -   Total Nodes            : 514
+[INFO] -   Total Edges            : 1020
+[INFO] - 
+[3. Cognitive Dynamics]
+[INFO] -   Abstraction Ratio      : 0.42
+[INFO] -   Conflicts Resolved     : 4
+[INFO] - ==================================================
+[INFO] - 

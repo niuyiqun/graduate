@@ -1,0 +1,31 @@
+# Metrics log (last-row values from the provided figures)
+
+[LOCOMO | DS-ORC (Ours)]
+Single Hop:  F1=41.25, BLEU-1=28.90, LLM-as-a-Judge=69.5
+Multi-Hop:   F1=31.58, BLEU-1=22.15, LLM-as-a-Judge=54.8
+Open Domain: F1=48.92, BLEU-1=41.15, LLM-as-a-Judge=75.3
+Temporal:    F1=53.40, BLEU-1=42.66, LLM-as-a-Judge=60.1
+
+[MSC | DS-ORC (Ours)]
+METEOR=33.4, BERTScore=57.1, Consistency=88.6
+
+[Table 3-1: LOCOMO | NSCS (Ours)]
+Single Hop:  F1=42.80, BLEU-1=29.50, LLM-as-a-Judge=70.8
+Multi-Hop:   F1=45.60, BLEU-1=33.20, LLM-as-a-Judge=72.5
+Open Domain: F1=49.80, BLEU-1=41.50, LLM-as-a-Judge=76.2
+Temporal:    F1=65.20, BLEU-1=51.40, LLM-as-a-Judge=78.9
+
+[MSC | NSCS (Ours)]
+METEOR=35.8, BERTScore=59.2, Consistency=94.5
+
+[LOCOMO | SDAA (Ours)]
+Single Hop:  F1=42.50, BLEU-1=29.30, LLM-as-a-Judge=71.2
+Multi-Hop:   F1=46.20, BLEU-1=33.50, LLM-as-a-Judge=73.1
+Open Domain: F1=51.2,  BLEU-1=41.30, LLM-as-a-Judge=77.1
+Temporal:    F1=65.50, BLEU-1=51.20, LLM-as-a-Judge=79.2
+
+[MSC | SDAA (Ours)]
+METEOR=36.1, BERTScore=59.5, Consistency=94.8
+
+[Efficiency | SDAA (Ours)]
+Search Latency(ms)=83, Total Latency(ms)=645, Hit Rate(%)=86.4, Fallback Rate(%)=13.6
